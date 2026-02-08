@@ -51,7 +51,7 @@ jobs:
           swap-size-mb: 1024
           remove-dotnet: 'true'
           remove-android: 'true'
-          remove-haskell: 'true'
+          remove-haskell: 'false'
           remove-docker-images: 'true'
           
       - name: Checkout
@@ -210,7 +210,7 @@ jobs:
           swap-size-mb: 1024
           remove-dotnet: 'true'
           remove-android: 'true'
-          remove-haskell: 'true'
+          remove-haskell: 'false'
           remove-docker-images: 'true'
           
       - name: Checkout code
@@ -343,7 +343,7 @@ jobs:
           swap-size-mb: 1024
           remove-dotnet: 'true'
           remove-android: 'true'
-          remove-haskell: 'true'
+          remove-haskell: 'false'
           remove-docker-images: 'true'
           
       - name: Checkout code
@@ -479,7 +479,7 @@ jobs:
           swap-size-mb: 1024
           remove-dotnet: 'true'
           remove-android: 'true'
-          remove-haskell: 'true'
+          remove-haskell: 'false'
           remove-docker-images: 'true'
 
       - name: Checkout code
