@@ -59,7 +59,9 @@ jobs:
           
       - name: Checkout
         uses: actions/checkout@main
-
+        with:
+          clean: true
+          
       - name: WeChat notification
         run: |
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=开始编译OpenWrt"
@@ -222,6 +224,8 @@ jobs:
           
       - name: Checkout code
         uses: actions/checkout@main
+        with:
+          clean: true
 
       - name: Initialize environment
         env:
@@ -359,6 +363,8 @@ jobs:
           
       - name: Checkout code
         uses: actions/checkout@main
+        with:
+          clean: true
 
       - name: Initialize environment
         env:
@@ -499,7 +505,9 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@main
-
+        with:
+          clean: true
+          
       - name: Initialize environment
         env:
           DEBIAN_FRONTEND: noninteractive
