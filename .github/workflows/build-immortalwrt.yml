@@ -145,6 +145,7 @@ jobs:
           make download -j16
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
+          df -hT
 
       - name: Multi-thread compile with CCache
         id: Multi-thread
@@ -265,6 +266,7 @@ jobs:
           ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始编译第二部分"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始编译第二部分
+          df -hT
 
       - name: Fix kernel config missing issue
         env:
@@ -400,6 +402,7 @@ jobs:
           ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始编译第三部分"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始编译第三部分
+          df -hT
 
       - name: Fix kernel config missing issue
         env:
@@ -538,7 +541,8 @@ jobs:
           ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始最终编译"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始最终编译
-
+          df -hT
+          
       - name: Fix kernel config missing issue
         env:
           CC: "ccache gcc"
