@@ -57,21 +57,6 @@ jobs:
           build-mount-path: 'true'
           remove-docker-images: 'true'
 
-      - name: Force cleanup workspace
-        run: |
-          echo "=== Force cleanup workspace ==="
-          WORKSPACE="${{ github.workspace }}"
-          sudo lsof +D "$WORKSPACE" 2>/dev/null | awk 'NR>1 {print $2}' | sort -u | xargs -r sudo kill -9 2>/dev/null || true
-          sleep 1
-          mount | grep "$WORKSPACE" | awk '{print $3}' | xargs -r sudo umount -f 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/.[!.]* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/..?* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/true 2>/dev/null || true
-          sudo mkdir -p "$WORKSPACE"
-          sudo chown -R $USER:$USER "$WORKSPACE"
-          df -h
-
       - name: Checkout
         uses: actions/checkout@main
         with:
@@ -237,21 +222,6 @@ jobs:
           build-mount-path: 'true'
           remove-docker-images: 'true'
 
-      - name: Force cleanup workspace
-        run: |
-          echo "=== Force cleanup workspace ==="
-          WORKSPACE="${{ github.workspace }}"
-          sudo lsof +D "$WORKSPACE" 2>/dev/null | awk 'NR>1 {print $2}' | sort -u | xargs -r sudo kill -9 2>/dev/null || true
-          sleep 1
-          mount | grep "$WORKSPACE" | awk '{print $3}' | xargs -r sudo umount -f 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/.[!.]* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/..?* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/true 2>/dev/null || true
-          sudo mkdir -p "$WORKSPACE"
-          sudo chown -R $USER:$USER "$WORKSPACE"
-          df -h
-
       - name: Checkout code
         uses: actions/checkout@main
         with:
@@ -390,21 +360,6 @@ jobs:
           remove-codeql: 'true'
           build-mount-path: 'true'
           remove-docker-images: 'true'
-
-      - name: Force cleanup workspace
-        run: |
-          echo "=== Force cleanup workspace ==="
-          WORKSPACE="${{ github.workspace }}"
-          sudo lsof +D "$WORKSPACE" 2>/dev/null | awk 'NR>1 {print $2}' | sort -u | xargs -r sudo kill -9 2>/dev/null || true
-          sleep 1
-          mount | grep "$WORKSPACE" | awk '{print $3}' | xargs -r sudo umount -f 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/.[!.]* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/..?* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/true 2>/dev/null || true
-          sudo mkdir -p "$WORKSPACE"
-          sudo chown -R $USER:$USER "$WORKSPACE"
-          df -h
 
       - name: Checkout code
         uses: actions/checkout@main
@@ -547,21 +502,6 @@ jobs:
           remove-codeql: 'true'
           build-mount-path: 'true'
           remove-docker-images: 'true'
-
-      - name: Force cleanup workspace
-        run: |
-          echo "=== Force cleanup workspace ==="
-          WORKSPACE="${{ github.workspace }}"
-          sudo lsof +D "$WORKSPACE" 2>/dev/null | awk 'NR>1 {print $2}' | sort -u | xargs -r sudo kill -9 2>/dev/null || true
-          sleep 1
-          mount | grep "$WORKSPACE" | awk '{print $3}' | xargs -r sudo umount -f 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/.[!.]* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/..?* 2>/dev/null || true
-          sudo rm -rf "$WORKSPACE"/true 2>/dev/null || true
-          sudo mkdir -p "$WORKSPACE"
-          sudo chown -R $USER:$USER "$WORKSPACE"
-          df -h
 
       - name: Checkout code
         uses: actions/checkout@main
