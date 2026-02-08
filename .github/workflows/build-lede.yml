@@ -57,6 +57,16 @@ jobs:
           build-mount-path: 'true'
           remove-docker-images: 'true'
           
+      - name: Pre-cleanup
+        run: |
+          echo "=== Pre-cleanup ==="
+          sudo chown -R $USER:$USER ${{ github.workspace }} || true
+          sudo rm -rf ${{ github.workspace }}/* || true
+          sudo rm -rf ${{ github.workspace }}/.[!.]* || true
+          sudo rm -rf ${{ github.workspace }}/..?* || true
+          sudo rm -rf ${{ github.workspace }}/true || true
+          df -h
+          
       - name: Checkout
         uses: actions/checkout@main
         with:
@@ -222,6 +232,16 @@ jobs:
           build-mount-path: 'true'
           remove-docker-images: 'true'
           
+      - name: Pre-cleanup
+        run: |
+          echo "=== Pre-cleanup ==="
+          sudo chown -R $USER:$USER ${{ github.workspace }} || true
+          sudo rm -rf ${{ github.workspace }}/* || true
+          sudo rm -rf ${{ github.workspace }}/.[!.]* || true
+          sudo rm -rf ${{ github.workspace }}/..?* || true
+          sudo rm -rf ${{ github.workspace }}/true || true
+          df -h
+          
       - name: Checkout code
         uses: actions/checkout@main
         with:
@@ -360,6 +380,16 @@ jobs:
           remove-codeql: 'true'
           build-mount-path: 'true'
           remove-docker-images: 'true'
+          
+      - name: Pre-cleanup
+        run: |
+          echo "=== Pre-cleanup ==="
+          sudo chown -R $USER:$USER ${{ github.workspace }} || true
+          sudo rm -rf ${{ github.workspace }}/* || true
+          sudo rm -rf ${{ github.workspace }}/.[!.]* || true
+          sudo rm -rf ${{ github.workspace }}/..?* || true
+          sudo rm -rf ${{ github.workspace }}/true || true
+          df -h
           
       - name: Checkout code
         uses: actions/checkout@main
@@ -502,6 +532,16 @@ jobs:
           remove-codeql: 'true'
           build-mount-path: 'true'
           remove-docker-images: 'true'
+     
+      - name: Pre-cleanup
+        run: |
+          echo "=== Pre-cleanup ==="
+          sudo chown -R $USER:$USER ${{ github.workspace }} || true
+          sudo rm -rf ${{ github.workspace }}/* || true
+          sudo rm -rf ${{ github.workspace }}/.[!.]* || true
+          sudo rm -rf ${{ github.workspace }}/..?* || true
+          sudo rm -rf ${{ github.workspace }}/true || true
+          df -h
 
       - name: Checkout code
         uses: actions/checkout@main
