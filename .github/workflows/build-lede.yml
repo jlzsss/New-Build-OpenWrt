@@ -54,13 +54,11 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
-          build-mount-path: 'true'
+          build-mount-path: 'false'
           remove-docker-images: 'true'
 
       - name: Checkout
         uses: actions/checkout@main
-        with:
-          clean: false
           
       - name: WeChat notification
         run: |
@@ -78,9 +76,9 @@ jobs:
           sudo -E apt-get autoremove --purge
           sudo -E apt-get clean
           sudo timedatectl set-timezone "$TZ"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
-          sudo chmod 777 /workdir
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
       # 新增 CCache 初始化
@@ -92,10 +90,9 @@ jobs:
           ccache -s
 
       - name: Clone source code
-        working-directory: /workdir
+        working-directory: ${{ github.workspace }}
         run: |
           git clone -b $REPO_BRANCH --single-branch $REPO_URL openwrt
-          ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
 
       - name: Load custom feeds
         run: |
@@ -183,7 +180,8 @@ jobs:
 
       - name: Compress directory
         run: |
-          bsdtar -czlf openwrt.tar.gz /workdir/openwrt && sudo rm -rf /workdir/openwrt
+          cd ${{ github.workspace }}
+          bsdtar -czlf openwrt.tar.gz openwrt && sudo rm -rf openwrt
           df -hT
 
       - name: Store build artifacts
@@ -219,13 +217,11 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
-          build-mount-path: 'true'
+          build-mount-path: 'false'
           remove-docker-images: 'true'
 
       - name: Checkout code
         uses: actions/checkout@main
-        with:
-          clean: false
 
       - name: Initialize environment
         env:
@@ -238,9 +234,9 @@ jobs:
           sudo -E apt-get autoremove --purge
           sudo -E apt-get clean
           sudo timedatectl set-timezone "$TZ"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
-          sudo chmod 777 /workdir
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
       # 新增 CCache 初始化
@@ -255,15 +251,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: prepare-build-output
-          path: /workdir
+          path: ${{ github.workspace }}
 
       - name: WeChat notification
-        working-directory: /workdir
+        working-directory: ${{ github.workspace }}
         run: |
-          cd /workdir
+          cd ${{ github.workspace }}
           mkdir -p openwrt
-          bsdtar -xzf openwrt.tar.gz -C /workdir/openwrt --strip-components=2 && rm openwrt.tar.gz
-          ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
+          bsdtar -xzf openwrt.tar.gz -C ${{ github.workspace }}/openwrt --strip-components=1 && rm openwrt.tar.gz
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始编译第二部分"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始编译第二部分
           df -hT
@@ -322,7 +317,8 @@ jobs:
 
       - name: Compress directory
         run: |
-          bsdtar -czlf openwrt.tar.gz /workdir/openwrt && sudo rm -rf /workdir/openwrt
+          cd ${{ github.workspace }}
+          bsdtar -czlf openwrt.tar.gz openwrt && sudo rm -rf openwrt
           df -hT
 
       - name: Store build artifacts
@@ -358,13 +354,11 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
-          build-mount-path: 'true'
+          build-mount-path: 'false'
           remove-docker-images: 'true'
 
       - name: Checkout code
         uses: actions/checkout@main
-        with:
-          clean: false
 
       - name: Initialize environment
         env:
@@ -377,9 +371,9 @@ jobs:
           sudo -E apt-get autoremove --purge
           sudo -E apt-get clean
           sudo timedatectl set-timezone "$TZ"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
-          sudo chmod 777 /workdir
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
       # 新增 CCache 初始化
@@ -394,15 +388,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build1-build-output
-          path: /workdir
+          path: ${{ github.workspace }}
 
       - name: WeChat notification
-        working-directory: /workdir
+        working-directory: ${{ github.workspace }}
         run: |
-          cd /workdir
+          cd ${{ github.workspace }}
           mkdir -p openwrt
-          bsdtar -xzf openwrt.tar.gz -C /workdir/openwrt --strip-components=2 && rm openwrt.tar.gz
-          ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
+          bsdtar -xzf openwrt.tar.gz -C ${{ github.workspace }}/openwrt --strip-components=1 && rm openwrt.tar.gz
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始编译第三部分"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始编译第三部分
           df -hT
@@ -464,7 +457,8 @@ jobs:
 
       - name: Compress directory
         run: |
-          bsdtar -czlf openwrt.tar.gz /workdir/openwrt && sudo rm -rf /workdir/openwrt
+          cd ${{ github.workspace }}
+          bsdtar -czlf openwrt.tar.gz openwrt && sudo rm -rf openwrt
           df -hT
 
       - name: Store build artifacts
@@ -500,13 +494,11 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
-          build-mount-path: 'true'
+          build-mount-path: 'false'
           remove-docker-images: 'true'
 
       - name: Checkout code
         uses: actions/checkout@main
-        with:
-          clean: false
           
       - name: Initialize environment
         env:
@@ -519,9 +511,9 @@ jobs:
           sudo -E apt-get autoremove --purge
           sudo -E apt-get clean
           sudo timedatectl set-timezone "$TZ"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
-          sudo chmod 777 /workdir
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
       # 新增 CCache 初始化
@@ -536,15 +528,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build2-build-output
-          path: /workdir
+          path: ${{ github.workspace }}
 
       - name: WeChat notification
-        working-directory: /workdir
+        working-directory: ${{ github.workspace }}
         run: |
-          cd /workdir
+          cd ${{ github.workspace }}
           mkdir -p openwrt
-          bsdtar -xzf openwrt.tar.gz -C /workdir/openwrt --strip-components=2 && rm openwrt.tar.gz
-          ln -sf /workdir/openwrt ${{ github.workspace }}/openwrt
+          bsdtar -xzf openwrt.tar.gz -C ${{ github.workspace }}/openwrt --strip-components=1 && rm openwrt.tar.gz
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始最终编译"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始最终编译
           df -hT
