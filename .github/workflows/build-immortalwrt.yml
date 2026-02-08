@@ -55,6 +55,7 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
+          build-mount-path: 'true'
           remove-docker-images: 'true'
           
       - name: Checkout
@@ -222,6 +223,7 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
+          build-mount-path: 'true'
           remove-docker-images: 'true'
           
       - name: Checkout code
@@ -358,6 +360,7 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
+          build-mount-path: 'true'
           remove-docker-images: 'true'
           
       - name: Checkout code
@@ -497,6 +500,7 @@ jobs:
           remove-haskell: 'true'
           overprovision-lvm: 'true'
           remove-codeql: 'true'
+          build-mount-path: 'true'
           remove-docker-images: 'true'
               
       - name: Checkout code
