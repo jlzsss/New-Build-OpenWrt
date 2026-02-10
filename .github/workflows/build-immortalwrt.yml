@@ -432,7 +432,7 @@ jobs:
         run: |
           cd openwrt
           # 执行最终的安装和固件生成步骤
-          make package/compile -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
+          make package/compile -j$(($(nproc) + 1)) CC="$CC" CXX="$CXX"
           make package/install -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
           make target/install -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
           make buildinfo CC="$CC" CXX="$CXX" # 确保生成 buildinfo
