@@ -81,12 +81,20 @@ jobs:
           sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
-      # 新增 CCache 初始化
       - name: Setup CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ github.run_id }}
+          restore-keys: |
+            ccache-
+
+      - name: Configure CCache
         run: |
           sudo mkdir -p $CCACHE_DIR
           sudo chmod 777 $CCACHE_DIR
           ccache --set-config=max_size=$CCACHE_MAXSIZE
+          ccache --set-config=cache_dir=$CCACHE_DIR
           ccache -s
 
       - name: Clone source code
@@ -197,7 +205,7 @@ jobs:
             openwrt.tar.gz
 
       - name: WeChat notification
-        if: steps.Multi-thread.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success' && !cancelled() && job.status == 'success'
+        if: (steps.Multi-thread.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success') && !cancelled() && job.status == 'success'
         run: |
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt第一部分编译成功"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt第一部分编译成功
@@ -243,12 +251,20 @@ jobs:
           sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
-      # 新增 CCache 初始化
       - name: Setup CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ github.run_id }}
+          restore-keys: |
+            ccache-
+
+      - name: Configure CCache
         run: |
           sudo mkdir -p $CCACHE_DIR
           sudo chmod 777 $CCACHE_DIR
           ccache --set-config=max_size=$CCACHE_MAXSIZE
+          ccache --set-config=cache_dir=$CCACHE_DIR
           ccache -s
 
       - name: Download artifacts
@@ -272,19 +288,17 @@ jobs:
           CC: "ccache gcc"
           CXX: "ccache g++"
         run: |
-           cd openwrt
-           # 从配置文件中获取 Linux 内核版本号
-           LINUX_VERSION=$(grep '^CONFIG_LINUX_' .config | sed -r 's/^CONFIG_LINUX_([0-9\.]+)=y/\1/')
-           KERNEL_CONFIG_DIR="build_dir/target-x86_64_musl/linux-x86_64/linux-${LINUX_VERSION}"
-           # 确保 kernel 配置文件存在
-           if [ ! -f "${KERNEL_CONFIG_DIR}/.config" ]; then
-           echo "Kernel .config 文件缺失，尝试重新生成"
-           make target/linux/clean
-           make package/linux/clean
-           make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
-           make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
-           ccache -s
-           fi
+          cd openwrt
+          LINUX_VERSION=$(grep '^CONFIG_LINUX_' .config | sed -r 's/^CONFIG_LINUX_([0-9\.]+)=y/\1/')
+          KERNEL_CONFIG_DIR="build_dir/target-x86_64_musl/linux-x86_64/linux-${LINUX_VERSION}"
+          if [ ! -f "${KERNEL_CONFIG_DIR}/.config" ]; then
+            echo "Kernel .config 文件缺失，尝试重新生成"
+            make target/linux/clean
+            make package/linux/clean
+            make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
+            make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
+            ccache -s
+          fi
 
       - name: Multi-thread compile with CCache
         id: Multi-thread
@@ -333,7 +347,7 @@ jobs:
             openwrt.tar.gz
 
       - name: WeChat notification
-        if: steps.Multi-thread.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success' && !cancelled() && job.status == 'success'
+        if: (steps.Multi-thread.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success') && !cancelled() && job.status == 'success'
         run: |
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt第二部分编译成功"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt第二部分编译成功
@@ -381,12 +395,20 @@ jobs:
           sudo chmod 777 ${{ github.workspace }}/openwrt
           df -hT
 
-      # 新增 CCache 初始化
       - name: Setup CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ github.run_id }}
+          restore-keys: |
+            ccache-
+
+      - name: Configure CCache
         run: |
           sudo mkdir -p $CCACHE_DIR
           sudo chmod 777 $CCACHE_DIR
           ccache --set-config=max_size=$CCACHE_MAXSIZE
+          ccache --set-config=cache_dir=$CCACHE_DIR
           ccache -s
 
       - name: Download artifacts
@@ -410,19 +432,17 @@ jobs:
           CC: "ccache gcc"
           CXX: "ccache g++"
         run: |
-           cd openwrt
-           # 从配置文件中获取 Linux 内核版本号
-           LINUX_VERSION=$(grep '^CONFIG_LINUX_' .config | sed -r 's/^CONFIG_LINUX_([0-9\.]+)=y/\1/')
-           KERNEL_CONFIG_DIR="build_dir/target-x86_64_musl/linux-x86_64/linux-${LINUX_VERSION}"
-           # 确保 kernel 配置文件存在
-           if [ ! -f "${KERNEL_CONFIG_DIR}/.config" ]; then
-           echo "Kernel .config 文件缺失，尝试重新生成"
-           make target/linux/clean
-           make package/linux/clean
-           make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
-           make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
-           ccache -s
-           fi
+          cd openwrt
+          LINUX_VERSION=$(grep '^CONFIG_LINUX_' .config | sed -r 's/^CONFIG_LINUX_([0-9\.]+)=y/\1/')
+          KERNEL_CONFIG_DIR="build_dir/target-x86_64_musl/linux-x86_64/linux-${LINUX_VERSION}"
+          if [ ! -f "${KERNEL_CONFIG_DIR}/.config" ]; then
+            echo "Kernel .config 文件缺失，尝试重新生成"
+            make target/linux/clean
+            make package/linux/clean
+            make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
+            make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
+            ccache -s
+          fi
 
       - name: Final compile with CCache
         id: final-compile
@@ -432,7 +452,7 @@ jobs:
         run: |
           cd openwrt
           # 执行最终的安装和固件生成步骤
-          make package/compile -j$(($(nproc) + 1)) CC="$CC" CXX="$CXX"
+          make package/compile -j$(($(nproc) + 1)) BUILD_PACKAGES=y CC="$CC" CXX="$CXX"
           make package/install -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
           make target/install -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
           make buildinfo CC="$CC" CXX="$CXX" # 确保生成 buildinfo
@@ -625,7 +645,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: WeChat notification - Final Result
-        if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success' && !cancelled() && job.status == 'success'
+        if: (steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success') && !cancelled() && job.status == 'success'
         run: |
           curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt编译成功"
           # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt编译成功
