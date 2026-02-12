@@ -25,7 +25,7 @@ env:
   CCACHE_COMPRESS: true
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: openwrt-24.10
-  CHOOSE_VERSION: v24.10.4
+  CHOOSE_VERSION: v24.10.5
   FEEDS_CONF: Immortalwrt/feeds.conf.default
   CONFIG_FILE: Immortalwrt/.config
   DIY_P1_SH: Immortalwrt/diy-part1.sh
