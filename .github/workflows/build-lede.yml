@@ -19,9 +19,8 @@ permissions:
   pull-requests: write
 
 env:
-  # 新增 CCache 配置
-  CCACHE_DIR: /mnt/ccache
-  CCACHE_MAXSIZE: 3G
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 1G
   CCACHE_COMPRESS: true
   REPO_URL: https://github.com/coolsnowwolf/lede.git
   REPO_BRANCH: master
@@ -90,8 +89,7 @@ jobs:
 
       - name: Configure CCache
         run: |
-          sudo mkdir -p $CCACHE_DIR
-          sudo chmod 777 $CCACHE_DIR
+          mkdir -p $CCACHE_DIR
           ccache --set-config=max_size=$CCACHE_MAXSIZE
           ccache --set-config=cache_dir=$CCACHE_DIR
           ccache -s
@@ -255,8 +253,7 @@ jobs:
 
       - name: Configure CCache
         run: |
-          sudo mkdir -p $CCACHE_DIR
-          sudo chmod 777 $CCACHE_DIR
+          mkdir -p $CCACHE_DIR
           ccache --set-config=max_size=$CCACHE_MAXSIZE
           ccache --set-config=cache_dir=$CCACHE_DIR
           ccache -s
@@ -399,8 +396,7 @@ jobs:
 
       - name: Configure CCache
         run: |
-          sudo mkdir -p $CCACHE_DIR
-          sudo chmod 777 $CCACHE_DIR
+          mkdir -p $CCACHE_DIR
           ccache --set-config=max_size=$CCACHE_MAXSIZE
           ccache --set-config=cache_dir=$CCACHE_DIR
           ccache -s
