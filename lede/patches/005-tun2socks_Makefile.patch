@@ -1,5 +1,5 @@
---- a/feeds/kenzok8/tun2socks/Makefile
-+++ b/feeds/kenzok8/tun2socks/Makefile
+--- a/package/feeds/kenzok8/tun2socks/Makefile
++++ b/package/feeds/kenzok8/tun2socks/Makefile
 @@ -4,9 +4,9 @@ PKG_NAME:=tun2socks
  PKG_VERSION:=2.6.0
 -PKG_RELEASE:=61
@@ -11,3 +11,4 @@
 +PKG_SOURCE_VERSION:=9c2ce399799536655a1a1cb59561e270be767b87
  
  PKG_MAINTAINER:=Konstantine Shevlakov <shevlako@132lan.ru>
+ PKG_LICENSE:=GPL-3.0
