@@ -5,8 +5,8 @@ src-git telephony https://github.com/coolsnowwolf/telephony.git
 src-git helloworld https://github.com/fw876/helloworld.git
 src-git luci2 https://github.com/coolsnowwolf/luci.git;openwrt-23.05
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;main
-src-git haiibo https://github.com/haiibo/openwrt-packages.git
 src-git xuanranran https://github.com/xuanranran/openwrt-packages.git
+src-git haiibo https://github.com/haiibo/openwrt-packages.git
 src-git kenzo https://github.com/kenzok8/openwrt-packages.git
 src-git small https://github.com/kenzok8/small.git
 src-git kenzok8 https://github.com/kenzok8/jell.git
