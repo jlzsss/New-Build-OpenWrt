@@ -22,6 +22,7 @@ git clone --depth 1 https://github.com/yichya/luci-app-xray.git package/luci-app
 git clone --depth 1 https://github.com/xiechangan123/luci-i18n-xray-zh-cn.git package/luci-i18n-xray-zh-cn
 git clone --depth 1 https://github.com/yichya/openwrt-xray-geodata-cut.git package/xray-geodata
 git clone --depth 1 -b luci2 https://github.com/kuoruan/luci-app-v2ray.git package/luci-app-v2ray
+git clone --depth 1 https://github.com/10000ge10000/luci-app-openclaw.git package/luci-app-openclaw
 git clone --depth 1 https://github.com/jlzsss/luci-app-sxray.git package/luci-app-sxray
 git clone --depth 1 https://github.com/frainzy1477/luci-app-trojan.git package/luci-app-trojan
 git clone --depth 1 -b test https://github.com/frainzy1477/luci-app-clash.git package/luci-app-clash
