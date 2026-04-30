@@ -1,9 +1,0 @@
-REGEDIT4
-
-[HKEY_CURRENT_USER\Software\Cheat Engine]
-"First Time User"=dword:00000000
-"Show Language MenuItem"=dword:00000001
-
-[HKEY_CURRENT_USER\Software\Cheat Engine\VersionCheck]
-"CheckOnLaunch"="0"
-"CheckInterval"="0"
