@@ -1,0 +1,11 @@
+This is the license for the Cheat Engine application and source code:
+Only for personal use/testing
+Use in educational environments allowed
+No waranties are given, no liabilities taken
+If you get fucked, it's your problem
+
+no selling, 
+no commercial use unless you have obtained a license from Eric Heijnen
+no renting it out, 
+no uploading to other sites,
+no sharing with other people except the link where this was originally downloaded from (cheatengine.org or patreon.com) that means no chocolatey and similar distributions

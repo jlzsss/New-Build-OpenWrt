@@ -12,6 +12,6 @@ src-git small https://github.com/kenzok8/small.git
 src-git kenzok8 https://github.com/kenzok8/jell.git
 src-git packages3 https://github.com/xiangfeidexiaohuo/openwrt-packages.git
 src-git liuran https://github.com/liuran001/openwrt-packages;packages
-src-git other https://github.com/Lienol/openwrt-package.git;other
+src-git other https://github.com/Lienol/openwrt-package.git;main
 src-git lede https://github.com/jlzsss/project-lede.git
 

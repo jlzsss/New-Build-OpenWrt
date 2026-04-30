@@ -1,0 +1,19 @@
+#: SS-OaPF
+msgid "Open a process first"
+msgstr "先打开一个进程"
+
+#: SS-CESF
+msgid "Cheat Engine Scan files"
+msgstr "作弊引擎扫描文件"
+
+#: SS-OaPFDaS
+msgid "Open a process first and do a scan"
+msgstr "首先打开一个进程并进行扫描"
+
+#: SS-SSS
+msgid "Save scan session"
+msgstr "保存扫描会话"
+
+#: SS-LSS
+msgid "Load scan session"
+msgstr "加载扫描会话"

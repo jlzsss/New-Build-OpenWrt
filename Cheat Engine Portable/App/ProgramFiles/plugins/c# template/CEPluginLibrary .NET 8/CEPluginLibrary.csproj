@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>CEPluginLibrary</RootNamespace>
+    <AssemblyName>CEPluginExample</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+<ItemGroup>
+  <Compile Include="../CEPluginLibrary/*.cs" />
+  <Compile Include="../CEPluginLibrary/SDK/*.cs" />
+</ItemGroup>
+</Project>

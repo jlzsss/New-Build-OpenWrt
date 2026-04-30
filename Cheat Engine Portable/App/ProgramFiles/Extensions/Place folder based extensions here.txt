@@ -1,0 +1,4 @@
+The folders in this path will get their Lua code executed when CE launches
+if there is a loadorder.txt file present in the folder the lua files will be loaded in that order. if a file is missing from that list, it won't be auto loaded
+
+To get the path of the folder your lua files are running in use extractFilePath(getCurrentScriptPath())
