@@ -69,6 +69,8 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          sudo rm -f /etc/apt/sources.list.d/firefox.list
+          sudo apt-get remove -y --purge firefox
           sudo mv ${GITHUB_WORKSPACE}/Immortalwrt/sources-24.04.list /etc/apt/sources.list.d/
           sudo -E apt-get update -y
           sudo -E apt-get full-upgrade -y
@@ -238,6 +240,8 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          sudo rm -f /etc/apt/sources.list.d/firefox.list
+          sudo apt-get remove -y --purge firefox
           sudo mv ${GITHUB_WORKSPACE}/Immortalwrt/sources-24.04.list /etc/apt/sources.list.d/
           sudo -E apt-get update -y
           sudo -E apt-get full-upgrade -y
@@ -381,6 +385,8 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          sudo rm -f /etc/apt/sources.list.d/firefox.list
+          sudo apt-get remove -y --purge firefox
           sudo mv ${GITHUB_WORKSPACE}/Immortalwrt/sources-24.04.list /etc/apt/sources.list.d/
           sudo -E apt-get update -y
           sudo -E apt-get full-upgrade -y
