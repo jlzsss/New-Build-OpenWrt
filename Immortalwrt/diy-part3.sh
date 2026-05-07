@@ -55,7 +55,11 @@ rm -rf feeds/NueXini/luci-app-gost
 rm -rf feeds/NueXini/gost
 rm -rf feeds/NueXini/qBittorrent
 rm -rf feeds/NueXini/qBittorrent-static
-rm -rf feeds/xuanranran/qtbase
+rm -rf feeds/xuanranran/other/lean/qBittorrent
+rm -rf feeds/xuanranran/other/lean/qBittorrent-static
+rm -rf feeds/xuanranran/other/lean/qtbase
+rm -rf feeds/xuanranran/other/lean/qttools
+rm -rf feeds/xuanranran/other/lean/rblibtorrent
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
