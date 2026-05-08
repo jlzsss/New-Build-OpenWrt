@@ -1,9 +1,8 @@
 --- a/feeds/nikki/nikki/Makefile
 +++ b/feeds/nikki/nikki/Makefile
-@@ -10,13 +10,5 @@ PKG_RELEASE:=1
+@@ -10,16 +10,8 @@ PKG_RELEASE:=1
  PKG_LICENSE:=GPL3.0+
  PKG_MAINTAINER:=Joseph Mory <morytyann@gmail.com>
--
 -PKG_BUILD_DEPENDS:=golang/host
 -PKG_BUILD_PARALLEL:=1
 -PKG_BUILD_FLAGS:=no-mips16
@@ -15,7 +14,9 @@
  include $(INCLUDE_DIR)/package.mk
 -include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
  
-@@ -25,7 +17,7 @@ define Package/nikki
+ define Package/nikki
+   SECTION:=net
+@@ -27,7 +19,7 @@ define Package/nikki
    CATEGORY:=Network
    TITLE:=Transparent Proxy with Mihomo on OpenWrt.
    URL:=https://github.com/nikkinikki-org
@@ -23,7 +24,8 @@
 +  DEPENDS:=+ca-bundle +curl +yq firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy +mihomo
  endef
  
-@@ -88,7 +80,3 @@ define Package/nikki/postrm
+ define Package/nikki/conffiles
+@@ -90,7 +82,3 @@ define Package/nikki/postrm
  fi
  endef
  
