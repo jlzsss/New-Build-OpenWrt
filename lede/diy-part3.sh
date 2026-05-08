@@ -54,6 +54,14 @@ rm -rf feeds/NueXini/qBittorrent-static
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
+rm -rf feeds/nikki/nikki
+rm -rf feeds/nikki/clashoo
+rm -rf feeds/kenzok8/mihomo
+rm -rf feeds/kenzok8/luci-app-mihomo
+rm -rf feeds/small/mihomo
+rm -rf feeds/xuanranran/mihomo
+rm -rf feeds/haiibo/mihomo
+rm -rf feeds/liuran/mihomo
 
 
 # ./scripts/feeds update -a
