@@ -63,10 +63,6 @@ rm -rf feeds/xuanranran/other/lean/rblibtorrent
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
-# Apply patch to fix nikki Makefile
-if [ -d "feeds/nikki/nikki" ]; then
-    patch -p1 -d feeds/nikki/nikki < ../../patches/005-nikki_Makefile.patch || true
-fi
 rm -rf feeds/nikki/clashoo
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
