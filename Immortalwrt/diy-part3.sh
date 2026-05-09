@@ -63,6 +63,21 @@ rm -rf feeds/xuanranran/other/lean/rblibtorrent
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
+rm -rf feeds/nikki/clashoo
+rm -rf feeds/kenzok8/mihomo
+rm -rf feeds/kenzok8/luci-app-mihomo
+rm -rf feeds/small/mihomo
+rm -rf feeds/xuanranran/mihomo
+rm -rf feeds/haiibo/mihomo
+rm -rf feeds/liuran/mihomo
+
+# Modify clashoo Makefile to depend on nikki's mihomo instead of installing its own binary
+if [ -f "feeds/kenzok8/clashoo/Makefile" ]; then
+  # Add mihomo dependency
+  sed -i 's/^DEPENDS:=.*/& +mihomo/' feeds/kenzok8/clashoo/Makefile
+  # Remove the install of mihomo binary (clashoo should use nikki's mihomo)
+  sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/kenzok8/clashoo/Makefile
+fi
 
 
 
