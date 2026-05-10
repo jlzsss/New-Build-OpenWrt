@@ -70,6 +70,26 @@ if [ -f "feeds/kenzok8/clashoo/Makefile" ]; then
   sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/kenzok8/clashoo/Makefile
 fi
 
+# Modify nikki Makefile to depend on standalone mihomo instead of installing its own binary
+if [ -f "feeds/nikki/luci-app-nikki/Makefile" ]; then
+  # Add mihomo dependency if not already present
+  if ! grep -q '+mihomo' feeds/nikki/luci-app-nikki/Makefile; then
+    sed -i 's/^DEPENDS:=.*/& +mihomo/' feeds/nikki/luci-app-nikki/Makefile
+  fi
+  # Remove the install of mihomo binary (nikki should use standalone mihomo)
+  sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/nikki/luci-app-nikki/Makefile
+fi
+
+# Also modify nikki package (not just luci-app-nikki) if it exists
+if [ -f "feeds/nikki/nikki/Makefile" ]; then
+  # Add mihomo dependency if not already present
+  if ! grep -q '+mihomo' feeds/nikki/nikki/Makefile; then
+    sed -i 's/^DEPENDS:=.*/& +mihomo/' feeds/nikki/nikki/Makefile
+  fi
+  # Remove the install of mihomo binary
+  sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/nikki/nikki/Makefile
+fi
+
 
 # ./scripts/feeds update -a
 # ./scripts/feeds install -p kenzok8 luci-app-transmission
