@@ -67,37 +67,35 @@ rm -rf feeds/nikki/clashoo
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
 rm -rf feeds/small/mihomo
+rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
-# Modify clashoo Makefile to depend on nikki's mihomo instead of installing its own binary
-if [ -f "feeds/kenzok8/clashoo/Makefile" ]; then
-  # Add mihomo dependency
-  sed -i 's/^DEPENDS:=.*/& +mihomo/' feeds/kenzok8/clashoo/Makefile
-  # Remove the install of mihomo binary (clashoo should use nikki's mihomo)
-  sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/kenzok8/clashoo/Makefile
-fi
-
-# Modify nikki Makefile to depend on standalone mihomo instead of installing its own binary
-if [ -f "feeds/nikki/luci-app-nikki/Makefile" ]; then
-  # Add mihomo dependency if not already present
-  if ! grep -q '+mihomo' feeds/nikki/luci-app-nikki/Makefile; then
-    sed -i 's/^DEPENDS:=.*/& +mihomo/' feeds/nikki/luci-app-nikki/Makefile
+# Fix clashoo: depend on nikki instead of providing its own mihomo binary
+# nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
+echo "=== Fixing clashoo mihomo conflict ==="
+CLASHOO_FOUND=0
+for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
+  if [ -f "$clashoo_makefile" ]; then
+    echo "  Found: $clashoo_makefile"
+    CLASHOO_FOUND=1
+    # Remove mihomo from PROVIDES (keep clash-meta)
+    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
+    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
+    echo "  -> Removed mihomo from PROVIDES"
+    # Add +nikki to DEPENDS
+    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +nikki/' "$clashoo_makefile"
+    echo "  -> Added +nikki to DEPENDS"
+    # Remove the Go binary install line (clashoo uses nikki's mihomo)
+    sed -i '\|$(call GoPackage/Package/Install/Bin,|d' "$clashoo_makefile"
+    echo "  -> Removed Go binary install"
   fi
-  # Remove the install of mihomo binary (nikki should use standalone mihomo)
-  sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/nikki/luci-app-nikki/Makefile
+done
+if [ "$CLASHOO_FOUND" -eq 0 ]; then
+  echo "  WARNING: clashoo Makefile not found in any expected location!"
 fi
-
-# Also modify nikki package (not just luci-app-nikki) if it exists
-if [ -f "feeds/nikki/nikki/Makefile" ]; then
-  # Add mihomo dependency if not already present
-  if ! grep -q '+mihomo' feeds/nikki/nikki/Makefile; then
-    sed -i 's/^DEPENDS:=.*/& +mihomo/' feeds/nikki/nikki/Makefile
-  fi
-  # Remove the install of mihomo binary
-  sed -i '/INSTALL_BIN.*mihomo.*usr\/bin\/mihomo/d' feeds/nikki/nikki/Makefile
-fi
+echo "=== clashoo fix done ==="
 
 
 
