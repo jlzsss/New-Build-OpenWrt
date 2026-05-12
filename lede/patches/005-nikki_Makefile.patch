@@ -1,5 +1,5 @@
---- a/package/feeds/nikki/nikki/Makefile
-+++ b/package/feeds/nikki/nikki/Makefile
+--- a/feeds/nikki/nikki/Makefile
++++ b/feeds/nikki/nikki/Makefile
 @@ -63,8 +63,6 @@ define Package/nikki/install
  	$(INSTALL_DIR) $(1)/etc/config
  	$(INSTALL_CONF) ./files/nikki.config $(1)/etc/config/nikki
