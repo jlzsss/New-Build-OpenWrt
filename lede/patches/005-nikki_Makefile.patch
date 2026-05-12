@@ -1,0 +1,12 @@
+--- a/package/feeds/nikki/nikki/Makefile
++++ b/package/feeds/nikki/nikki/Makefile
+@@ -63,8 +63,6 @@ define Package/nikki/install
+ 	$(INSTALL_DIR) $(1)/etc/config
+ 	$(INSTALL_CONF) ./files/nikki.config $(1)/etc/config/nikki
+ 	$(INSTALL_DIR) $(1)/etc/init.d
+ 	$(INSTALL_BIN) ./files/nikki.init $(1)/etc/init.d/nikki
+-	$(INSTALL_DIR) $(1)/usr/bin
+-	$(INSTALL_BIN) ./files/mihomo $(1)/usr/bin/mihomo
+ endef
+ 
+ $(eval $(call BuildPackage,nikki))
