@@ -10,3 +10,4 @@
    ALTERNATIVES:=\
      300:/usr/bin/mihomo:/usr/libexec/nikki
  endef
+
