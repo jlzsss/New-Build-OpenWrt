@@ -72,6 +72,7 @@ rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
+
 # Fix clashoo: depend on nikki instead of providing its own mihomo binary
 # nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
 echo "=== Fixing clashoo mihomo conflict ==="
