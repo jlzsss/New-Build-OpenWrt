@@ -72,31 +72,6 @@ rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
-# Fix clashoo: depend on nikki instead of providing its own mihomo binary
-# nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
-echo "=== Fixing clashoo mihomo conflict ==="
-CLASHOO_FOUND=0
-for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
-  if [ -f "$clashoo_makefile" ]; then
-    echo "  Found: $clashoo_makefile"
-    CLASHOO_FOUND=1
-    # Remove mihomo from PROVIDES (keep clash-meta)
-    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    echo "  -> Removed mihomo from PROVIDES"
-    # Add +nikki to DEPENDS
-    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +nikki/' "$clashoo_makefile"
-    echo "  -> Added +nikki to DEPENDS"
-    # Remove the Go binary install line (clashoo uses nikki's mihomo)
-    sed -i '\|$(call GoPackage/Package/Install/Bin,|d' "$clashoo_makefile"
-    echo "  -> Removed Go binary install"
-  fi
-done
-if [ "$CLASHOO_FOUND" -eq 0 ]; then
-  echo "  WARNING: clashoo Makefile not found in any expected location!"
-fi
-echo "=== clashoo fix done ==="
-
 
 
 # ./scripts/feeds update -a
