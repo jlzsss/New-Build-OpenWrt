@@ -91,6 +91,7 @@ if [ -f "$NIKKI_MK" ]; then
   sed -i '/^GO_PKG_TAGS:=/d' "$NIKKI_MK"
   sed -i '/golang-package\.mk/d' "$NIKKI_MK"
   sed -i 's/DEPENDS:=$(GO_ARCH_DEPENDS)/DEPENDS:=/' "$NIKKI_MK"
+  sed -i 's/DEPENDS:= +ca-bundle/DEPENDS:=+ca-bundle/' "$NIKKI_MK"
   sed -i '/^  PROVIDES:=mihomo$/d' "$NIKKI_MK"
   sed -i '/^  ALTERNATIVES:=/d' "$NIKKI_MK"
   sed -i '/^    300:\/usr\/bin\/mihomo/d' "$NIKKI_MK"
@@ -98,6 +99,12 @@ if [ -f "$NIKKI_MK" ]; then
   sed -i '/\/usr\/libexec\/nikki/d' "$NIKKI_MK"
   sed -i '/^define Build\/Prepare/,/^endef$/d' "$NIKKI_MK"
   sed -i '/GoBinPackage/d' "$NIKKI_MK"
+  sed -i '/^define Build\/Compile/,/^endef$/d' "$NIKKI_MK"
+  # Add empty Build/Compile to skip compilation (nikki only installs config files)
+  sed -i '/^define Package\/nikki\/postrm/i\
+define Build/Compile\
+endef\
+' "$NIKKI_MK"
 fi
 
 
