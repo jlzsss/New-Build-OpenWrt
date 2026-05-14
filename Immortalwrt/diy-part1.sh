@@ -33,7 +33,7 @@ git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall.git pac
 git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/passwall2
 git clone --depth 1 https://github.com/Thaolga/openwrt-nekobox  package/openwrt-nekobox
 # git clone --depth 1 https://github.com/project-openwrt/luci-app-koolproxyR.git package/luci-app-koolproxyR
-git clone --depth 1 -b master --depth 1 https://github.com/vernesong/OpenClash.git package/OpenClash
+git clone --depth 1 -b master https://github.com/vernesong/OpenClash.git package/OpenClash
 # svn co https://github.com/Lienol/openwrt/trunk/package/diy package/diy
 # rm -rf package/diy/luci-app-dockerman
 # rm -rf package/diy/OpenAppFilter

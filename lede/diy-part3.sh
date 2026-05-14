@@ -63,31 +63,33 @@ rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
-
-# Fix clashoo: depend on nikki instead of providing its own mihomo binary
-# nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
-echo "=== Fixing clashoo mihomo conflict ==="
-CLASHOO_FOUND=0
-for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
-  if [ -f "$clashoo_makefile" ]; then
-    echo "  Found: $clashoo_makefile"
-    CLASHOO_FOUND=1
-    # Remove mihomo from PROVIDES (keep clash-meta)
-    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    echo "  -> Removed mihomo from PROVIDES"
-    # Add +nikki to DEPENDS
-    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +nikki/' "$clashoo_makefile"
-    echo "  -> Added +nikki to DEPENDS"
-    # Remove the Go binary install line (clashoo uses nikki's mihomo)
-    sed -i '\|$(call GoPackage/Package/Install/Bin,|d' "$clashoo_makefile"
-    echo "  -> Removed Go binary install"
-  fi
-done
-if [ "$CLASHOO_FOUND" -eq 0 ]; then
-  echo "  WARNING: clashoo Makefile not found in any expected location!"
+# Fix nikki Makefile: remove Go build config and mihomo binary installation
+# nikki should depend on standalone mihomo package instead of building it
+NIKKI_MK="feeds/nikki/nikki/Makefile"
+if [ -f "$NIKKI_MK" ]; then
+  sed -i '/^PKG_SOURCE:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_SOURCE_SUBDIR:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_SOURCE_PROTO:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_SOURCE_URL:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_SOURCE_VERSION:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_MIRROR_HASH:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_BUILD_DEPENDS:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_BUILD_PARALLEL:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_BUILD_FLAGS:=/d' "$NIKKI_MK"
+  sed -i '/^PKG_BUILD_TIME:=/d' "$NIKKI_MK"
+  sed -i '/^GO_PKG:=/d' "$NIKKI_MK"
+  sed -i '/^GO_PKG_LDFLAGS_X:=/d' "$NIKKI_MK"
+  sed -i '/^GO_PKG_TAGS:=/d' "$NIKKI_MK"
+  sed -i '/golang-package\.mk/d' "$NIKKI_MK"
+  sed -i 's/DEPENDS:=$(GO_ARCH_DEPENDS)/DEPENDS:=/' "$NIKKI_MK"
+  sed -i '/^  PROVIDES:=mihomo$/d' "$NIKKI_MK"
+  sed -i '/^  ALTERNATIVES:=/d' "$NIKKI_MK"
+  sed -i '/^    300:\/usr\/bin\/mihomo/d' "$NIKKI_MK"
+  sed -i '/GoPackage\/Package\/Install\/Bin/d' "$NIKKI_MK"
+  sed -i '/\/usr\/libexec\/nikki/d' "$NIKKI_MK"
+  sed -i '/^define Build\/Prepare/,/^endef$/d' "$NIKKI_MK"
+  sed -i '/GoBinPackage/d' "$NIKKI_MK"
 fi
-echo "=== clashoo fix done ==="
 
 
 # ./scripts/feeds update -a
