@@ -22,11 +22,6 @@ rm -rf feeds/kenzok8/qBittorrent
 rm -rf feeds/kenzok8/qBittorrent-Enhanced-Edition
 rm -rf feeds/kenzok8/qBittorrent-static
 rm -rf feeds/kenzok8/quickstart
-rm -rf feeds/small/nikki
-rm -rf feeds/small/luci-app-nikki
-rm -rf feeds/small/clashoo
-rm -rf feeds/small/luci-app-clashoo
-rm -rf feeds/small/mihomo
 rm -rf feeds/kenzok8/luci-app-nikki
 rm -rf feeds/kenzok8/nikki
 rm -rf feeds/kenzok8/clashoo
@@ -61,7 +56,7 @@ rm -rf feeds/luci2/luci-app-turboacc
 ./scripts/feeds install -p packages2 luci-app-quickstart
 ./scripts/feeds install -p luci2 transmission
 ./scripts/feeds install -p luci2 transmission-web-control
-rm -rf feeds/packages/net/{qBittorrent,qBittorrent-static,xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls,haproxy}
+rm -rf feeds/packages/net/{qBittorrent,qBittorrent-static,xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls,haproxy,nikki}
 rm -rf package/feeds/lede/php7
 # rm -rf package/feeds/packages/php7
 rm -rf feeds/lede/mt-drivers
