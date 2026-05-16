@@ -23,6 +23,27 @@ rm -rf feeds/kenzok8/qBittorrent-Enhanced-Edition
 rm -rf feeds/kenzok8/qBittorrent-static
 rm -rf feeds/kenzok8/quickstart
 rm -rf feeds/kenzok8/luci-app-nikki
+rm -rf feeds/kenzok8/nikki
+rm -rf feeds/kenzok8/clashoo
+rm -rf feeds/kenzok8/luci-app-clashoo
+rm -rf feeds/kenzok8/mihomo
+rm -rf feeds/helloworld/nikki
+rm -rf feeds/helloworld/clashoo
+rm -rf feeds/helloworld/luci-app-clashoo
+rm -rf feeds/helloworld/mihomo
+rm -rf feeds/kenzo/nikki
+rm -rf feeds/kenzo/clashoo
+rm -rf feeds/kenzo/luci-app-clashoo
+rm -rf feeds/kenzo/mihomo
+rm -rf feeds/packages/nikki
+rm -rf feeds/packages/clashoo
+rm -rf feeds/packages/luci-app-clashoo
+rm -rf feeds/packages/mihomo
+rm -rf feeds/luci-app-nikki
+rm -rf feeds/nikki
+rm -rf feeds/clashoo
+rm -rf feeds/luci-app-clashoo
+rm -rf feeds/mihomo
 rm -rf feeds/kenzok8/luci-app-quickstart
 rm -rf feeds/kenzok8/luci-app-xray
 rm -rf feeds/kenzok8/luci-app-xray-status
@@ -54,49 +75,7 @@ rm -rf feeds/NueXini/qBittorrent-static
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
-rm -rf feeds/nikki/clashoo
-rm -rf feeds/kenzok8/mihomo
-rm -rf feeds/kenzok8/luci-app-mihomo
-rm -rf feeds/small/mihomo
-rm -rf feeds/kenzo/mihomo
-rm -rf feeds/xuanranran/mihomo
-rm -rf feeds/haiibo/mihomo
-rm -rf feeds/liuran/mihomo
 
-# Fix nikki Makefile: remove Go build config and mihomo binary installation
-# nikki should depend on standalone mihomo package instead of building it
-NIKKI_MK="feeds/nikki/nikki/Makefile"
-if [ -f "$NIKKI_MK" ]; then
-  sed -i '/^PKG_SOURCE:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_SOURCE_SUBDIR:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_SOURCE_PROTO:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_SOURCE_URL:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_SOURCE_VERSION:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_MIRROR_HASH:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_BUILD_DEPENDS:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_BUILD_PARALLEL:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_BUILD_FLAGS:=/d' "$NIKKI_MK"
-  sed -i '/^PKG_BUILD_TIME:=/d' "$NIKKI_MK"
-  sed -i '/^GO_PKG:=/d' "$NIKKI_MK"
-  sed -i '/^GO_PKG_LDFLAGS_X:=/d' "$NIKKI_MK"
-  sed -i '/^GO_PKG_TAGS:=/d' "$NIKKI_MK"
-  sed -i '/golang-package\.mk/d' "$NIKKI_MK"
-  sed -i 's/DEPENDS:=$(GO_ARCH_DEPENDS)/DEPENDS:=/' "$NIKKI_MK"
-  sed -i 's/DEPENDS:= +ca-bundle/DEPENDS:=+ca-bundle/' "$NIKKI_MK"
-  sed -i '/^  PROVIDES:=mihomo$/d' "$NIKKI_MK"
-  sed -i '/^  ALTERNATIVES:=/d' "$NIKKI_MK"
-  sed -i '/^    300:\/usr\/bin\/mihomo/d' "$NIKKI_MK"
-  sed -i '/GoPackage\/Package\/Install\/Bin/d' "$NIKKI_MK"
-  sed -i '/\/usr\/libexec\/nikki/d' "$NIKKI_MK"
-  sed -i '/^define Build\/Prepare/,/^endef$/d' "$NIKKI_MK"
-  sed -i '/GoBinPackage/d' "$NIKKI_MK"
-  sed -i '/^define Build\/Compile/,/^endef$/d' "$NIKKI_MK"
-  # Add empty Build/Compile to skip compilation (nikki only installs config files)
-  sed -i '/^define Package\/nikki\/postrm/i\
-define Build/Compile\
-endef\
-' "$NIKKI_MK"
-fi
 
 
 # ./scripts/feeds update -a
