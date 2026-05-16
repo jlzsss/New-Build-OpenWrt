@@ -22,6 +22,11 @@ rm -rf feeds/kenzok8/qBittorrent
 rm -rf feeds/kenzok8/qBittorrent-Enhanced-Edition
 rm -rf feeds/kenzok8/qBittorrent-static
 rm -rf feeds/kenzok8/quickstart
+rm -rf feeds/small/nikki
+rm -rf feeds/small/luci-app-nikki
+rm -rf feeds/small/clashoo
+rm -rf feeds/small/luci-app-clashoo
+rm -rf feeds/small/mihomo
 rm -rf feeds/kenzok8/luci-app-nikki
 rm -rf feeds/kenzok8/nikki
 rm -rf feeds/kenzok8/clashoo
