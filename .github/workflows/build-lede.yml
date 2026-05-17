@@ -1,0 +1,656 @@
+name: Build-Lede
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
+  push:
+  schedule:
+    - cron: "0 17 * * *" # 每天 UTC 时间 17:00 (北京时间次日 1:00) 触发
+
+permissions:
+  packages: write
+  contents: write
+  actions: write
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 1G
+  CCACHE_COMPRESS: true
+  REPO_URL: https://github.com/coolsnowwolf/lede.git
+  REPO_BRANCH: master
+  FEEDS_CONF: lede/feeds.conf.default
+  CONFIG_FILE: lede/.config
+  DIY_P1_SH: lede/diy-part1.sh
+  DIY_P2_SH: lede/diy-part2.sh
+  DIY_P3_SH: lede/diy-part3.sh
+  SCKEY: ${{ secrets.SCKEY }}
+  GH_TOKEN: ${{ github.token }}
+  PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+  FREE_UP_DISK: true
+  UPLOAD_FILES: true
+  UPLOAD_COWTRANSFER: false
+  UPLOAD_WETRANSFER: false
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Checkout
+        uses: actions/checkout@main
+          
+      - name: WeChat notification
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=开始编译OpenWrt"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=开始编译OpenWrt
+
+      - name: Initialize environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/firefox.list
+          sudo apt-get remove -y --purge firefox
+          sudo mv ${GITHUB_WORKSPACE}/lede/sources-24.04.list /etc/apt/sources.list.d/
+          sudo -E apt-get update -y
+          sudo -E apt-get full-upgrade -y
+          sudo -E apt-get install -y --allow-downgrades build-essential flex bison cmake clang g++ gawk gcc-multilib g++-multilib gettext git-man git gnutls-dev libfuse-dev libncurses5-dev libssl-dev python3 python3-pip python3-ply python3-pyelftools rsync unzip zlib1g-dev file wget subversion patch upx-ucl autoconf automake curl asciidoc binutils bzip2 lib32gcc-s1 libc6-dev-i386 uglifyjs msmtp texinfo libreadline-dev libglib2.0-dev xmlto libelf-dev libtool autopoint antlr3 gperf ccache swig coreutils haveged scons libpython3-dev rename qemu-utils jq gh scdoc libarchive-tools
+          sudo -E apt-get autoremove --purge
+          sudo -E apt-get clean
+          sudo timedatectl set-timezone "$TZ"
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
+          df -hT
+
+      - name: Setup CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ github.run_id }}
+          restore-keys: |
+            ccache-
+
+      - name: Configure CCache
+        run: |
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=$CCACHE_MAXSIZE
+          ccache --set-config=cache_dir=$CCACHE_DIR
+          ccache -s
+
+      - name: Clone source code
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone -b $REPO_BRANCH --single-branch $REPO_URL openwrt
+
+      - name: Load custom feeds
+        run: |
+          [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+          sed -i 's/\r$//' $DIY_P1_SH
+          chmod +x $DIY_P1_SH
+          cd openwrt
+          $GITHUB_WORKSPACE/$DIY_P1_SH
+
+      - name: Update feeds
+        run: cd openwrt && ./scripts/feeds update -a
+
+      - name: Load own configuration
+        run: |
+          [ -e files ] && mv files openwrt/files
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+          sed -i 's/\r$//' $DIY_P2_SH
+          chmod +x $DIY_P2_SH
+          cd openwrt
+          $GITHUB_WORKSPACE/$DIY_P2_SH
+
+      - name: Install feeds
+        run: cd openwrt && ./scripts/feeds install -a
+
+      - name: Load custom configuration
+        run: |
+          [ -e files ] && mv files openwrt/files
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+          sed -i 's/\r$//' $DIY_P3_SH
+          chmod +x $DIY_P3_SH
+          cd openwrt
+          $GITHUB_WORKSPACE/$DIY_P3_SH
+          mv ${GITHUB_WORKSPACE}/lede/patches/002-dapnet-gateway_Conf.cpp.patch ${GITHUB_WORKSPACE}/openwrt/feeds/kenzok8/dapnet-gateway/patches
+          find "${GITHUB_WORKSPACE}/lede/patches" -type f -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%' | patch -d '${GITHUB_WORKSPACE}/openwrt' -p1 --forward"
+
+      - name: SSH connection to Actions
+        uses: P3TERX/ssh2actions@v1.0.0
+        if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh != 'false') || contains(github.event.action, 'ssh')
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+      - name: Download package
+        id: package
+        run: |
+          cd openwrt
+          make download -j16
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+          df -hT
+
+      - name: Multi-thread compile with CCache
+        id: Multi-thread
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          echo -e "$(($(nproc) + 1)) thread compile with CCache"
+          make -j$(($(nproc) + 1)) tools/compile CC="$CC" CXX="$CXX"
+          make -j$(($(nproc) + 1)) toolchain/compile CC="$CC" CXX="$CXX"
+          make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
+          make -j$(($(nproc) + 1)) package/{perl,node,python3,jq,docker}/compile CC="$CC" CXX="$CXX"
+          echo "status=success" >> $GITHUB_OUTPUT
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          ccache -s
+          df -hT
+
+      - name: Single-thread compile
+        id: Single-thread
+        if: failure()
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          make -j1 tools/compile V=s CC="$CC" CXX="$CXX"
+          make -j1 toolchain/compile V=s CC="$CC" CXX="$CXX"
+          make -j1 target/linux/compile V=s CC="$CC" CXX="$CXX"
+          make -j1 package/{perl,node,python3,jq,docker}/compile V=s CC="$CC" CXX="$CXX"
+          echo "status=success" >> $GITHUB_OUTPUT
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          ccache -s
+
+      - name: Compress directory
+        run: |
+          cd ${{ github.workspace }}
+          bsdtar -czlf openwrt.tar.gz openwrt && sudo rm -rf openwrt
+          df -hT
+
+      - name: Store build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepare-build-output
+          path: |
+            openwrt.tar.gz
+
+      - name: WeChat notification
+        if: (steps.Multi-thread.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success') && !cancelled() && job.status == 'success'
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt第一部分编译成功"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt第一部分编译成功
+
+      - name: WeChat notification
+        if: failure() && !cancelled()
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt第一部分编译失败"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt第一部分编译失败
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Initialize environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/firefox.list
+          sudo apt-get remove -y --purge firefox
+          sudo mv ${GITHUB_WORKSPACE}/lede/sources-24.04.list /etc/apt/sources.list.d/
+          sudo -E apt-get update -y
+          sudo -E apt-get full-upgrade -y
+          sudo -E apt-get install -y --allow-downgrades build-essential flex bison cmake clang g++ gawk gcc-multilib g++-multilib gettext git-man git gnutls-dev libfuse-dev libncurses5-dev libssl-dev python3 python3-pip python3-ply python3-pyelftools rsync unzip zlib1g-dev file wget subversion patch upx-ucl autoconf automake curl asciidoc binutils bzip2 lib32gcc-s1 libc6-dev-i386 uglifyjs msmtp texinfo libreadline-dev libglib2.0-dev xmlto libelf-dev libtool autopoint antlr3 gperf ccache swig coreutils haveged scons libpython3-dev rename qemu-utils jq scdoc libarchive-tools
+          sudo -E apt-get autoremove --purge
+          sudo -E apt-get clean
+          sudo timedatectl set-timezone "$TZ"
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
+          df -hT
+
+      - name: Setup CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ github.run_id }}
+          restore-keys: |
+            ccache-
+
+      - name: Configure CCache
+        run: |
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=$CCACHE_MAXSIZE
+          ccache --set-config=cache_dir=$CCACHE_DIR
+          ccache -s
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: prepare-build-output
+          path: ${{ github.workspace }}
+
+      - name: WeChat notification
+        working-directory: ${{ github.workspace }}
+        run: |
+          cd ${{ github.workspace }}
+          mkdir -p openwrt
+          bsdtar -xzf openwrt.tar.gz -C ${{ github.workspace }}/openwrt --strip-components=1 && rm openwrt.tar.gz
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始编译第二部分"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始编译第二部分
+          df -hT
+
+      - name: Fix kernel config missing issue
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          LINUX_VERSION=$(grep '^CONFIG_LINUX_' .config | sed -r 's/^CONFIG_LINUX_([0-9\.]+)=y/\1/')
+          KERNEL_CONFIG_DIR="build_dir/target-x86_64_musl/linux-x86_64/linux-${LINUX_VERSION}"
+          if [ ! -f "${KERNEL_CONFIG_DIR}/.config" ]; then
+            echo "Kernel .config 文件缺失，尝试重新生成"
+            make target/linux/clean
+            make package/linux/clean
+            make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
+            make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
+            ccache -s
+          fi
+
+      - name: Multi-thread compile with CCache
+        id: Multi-thread
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          echo -e "$(($(nproc) + 1)) thread compile with CCache"
+          make -j$(($(nproc) + 1)) package/luci/compile BUILD_PACKAGES=y CC="$CC" CXX="$CXX"
+          make -j$(($(nproc) + 1)) package/{qt6base,qt6tools,rblibtorrent,luci-app-qbittorrent,dnscrypt-proxy2,luci-app-accesscontrol,luci-app-advancedplus,luci-app-ap-modem,luci-app-autoreboot,luci-app-baidupcs-web,luci-app-banmac-ipt,luci-app-chinadns-ng,luci-app-cloudflarespeedtest,luci-app-cpu-status,luci-app-ddns,luci-app-diskman,luci-app-dnsproxy,luci-app-dockerman,luci-app-dpanel,luci-app-email,luci-app-emby,luci-app-eqos,luci-app-fchomo,luci-app-filetransfer,luci-app-frpc,luci-app-gost,luci-app-homebox,luci-app-ikoolproxy,luci-app-ipsec-vpnd,luci-app-jellyfin,luci-app-mosdns,luci-app-netdata,luci-app-nikki,luci-app-openlist2,luci-app-openvpn,luci-app-samba4,luci-app-shadowrt,luci-app-netspeedtest,geoview,luci-app-passwall,luci-app-shadowsocksr,luci-app-vssr,luci-app-adblock-fast,luci-app-adbyby-plus,luci-app-adguardhome,luci-app-transmission,luci-app-aria2,luci-app-bypass,luci-app-homeproxy,luci-app-kcptun,luci-app-openclash,luci-app-passwall2,luci-app-smartdns,luci-app-ss-redir,luci-app-sshtunnel,luci-app-upnp,luci-app-vsftpd,luci-app-tor,luci-app-xfrpc,luci-app-yt-dlp,luci-app-ubuntu2,luci-app-unifi,luci-app-ssr-plus,luci-app-store,luci-app-trojan,luci-app-v2ray,luci-app-v2raya,luci-app-nekobox,luci-theme-spectra,luci-app-shadowsocks-rust,luci-app-zerotier}/compile BUILD_PACKAGES=y CC="$CC" CXX="$CXX"
+          echo "status=success" >> $GITHUB_OUTPUT
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          ccache -s
+          df -hT
+
+      - name: Single-thread compile
+        id: Single-thread
+        if: failure()
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          make -j1 package/luci/compile BUILD_PACKAGES=y V=s CC="$CC" CXX="$CXX"
+          make -j1 package/{qt6base,qt6tools,rblibtorrent,luci-app-qbittorrent,dnscrypt-proxy2,luci-app-accesscontrol,luci-app-advancedplus,luci-app-ap-modem,luci-app-autoreboot,luci-app-baidupcs-web,luci-app-banmac-ipt,luci-app-chinadns-ng,luci-app-cloudflarespeedtest,luci-app-cpu-status,luci-app-ddns,luci-app-diskman,luci-app-dnsproxy,luci-app-dockerman,luci-app-dpanel,luci-app-email,luci-app-emby,luci-app-eqos,luci-app-fchomo,luci-app-filetransfer,luci-app-frpc,luci-app-gost,luci-app-homebox,luci-app-ikoolproxy,luci-app-ipsec-vpnd,luci-app-jellyfin,luci-app-mosdns,luci-app-netdata,luci-app-nikki,luci-app-openlist2,luci-app-openvpn,luci-app-samba4,luci-app-shadowrt,luci-app-netspeedtest,geoview,luci-app-passwall,luci-app-shadowsocksr,luci-app-vssr,luci-app-adblock-fast,luci-app-adbyby-plus,luci-app-adguardhome,luci-app-transmission,luci-app-aria2,luci-app-bypass,luci-app-homeproxy,luci-app-kcptun,luci-app-openclash,luci-app-passwall2,luci-app-smartdns,luci-app-ss-redir,luci-app-sshtunnel,luci-app-upnp,luci-app-vsftpd,luci-app-tor,luci-app-xfrpc,luci-app-yt-dlp,luci-app-ubuntu2,luci-app-unifi,luci-app-ssr-plus,luci-app-store,luci-app-trojan,luci-app-v2ray,luci-app-v2raya,luci-app-nekobox,luci-theme-spectra,luci-app-shadowsocks-rust,luci-app-zerotier}/compile BUILD_PACKAGES=y V=s CC="$CC" CXX="$CXX"
+          echo "status=success" >> $GITHUB_OUTPUT
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          ccache -s
+
+      - name: Compress directory
+        run: |
+          cd ${{ github.workspace }}
+          bsdtar -czlf openwrt.tar.gz openwrt && sudo rm -rf openwrt
+          df -hT
+
+      - name: Store build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-build-output
+          path: |
+            openwrt.tar.gz
+
+      - name: WeChat notification
+        if: (steps.Multi-thread.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success') && !cancelled() && job.status == 'success'
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt第二部分编译成功"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt第二部分编译成功
+
+      - name: WeChat notification
+        if: failure() && !cancelled()
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt第二部分编译失败"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt第二部分编译失败
+
+
+
+  uploads:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Checkout code
+        uses: actions/checkout@main
+          
+      - name: Initialize environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/firefox.list
+          sudo apt-get remove -y --purge firefox
+          sudo mv ${GITHUB_WORKSPACE}/lede/sources-24.04.list /etc/apt/sources.list.d/
+          sudo -E apt-get update -y
+          sudo -E apt-get full-upgrade -y
+          sudo -E apt-get install -y --allow-downgrades build-essential flex bison cmake clang g++ gawk gcc-multilib g++-multilib gettext git-man git gnutls-dev libfuse-dev libncurses5-dev libssl-dev python3 python3-pip python3-ply python3-pyelftools rsync unzip zlib1g-dev file wget subversion patch upx-ucl autoconf automake curl asciidoc binutils bzip2 lib32gcc-s1 libc6-dev-i386 uglifyjs msmtp texinfo libreadline-dev libglib2.0-dev xmlto libelf-dev libtool autopoint antlr3 gperf ccache swig coreutils haveged scons libpython3-dev rename qemu-utils jq scdoc libarchive-tools
+          sudo -E apt-get autoremove --purge
+          sudo -E apt-get clean
+          sudo timedatectl set-timezone "$TZ"
+          sudo mkdir -p ${{ github.workspace }}/openwrt
+          sudo chown $USER:$GROUPS ${{ github.workspace }}/openwrt
+          sudo chmod 777 ${{ github.workspace }}/openwrt
+          df -hT
+
+      - name: Setup CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ github.run_id }}
+          restore-keys: |
+            ccache-
+
+      - name: Configure CCache
+        run: |
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=$CCACHE_MAXSIZE
+          ccache --set-config=cache_dir=$CCACHE_DIR
+          ccache -s
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-build-output
+          path: ${{ github.workspace }}
+
+      - name: WeChat notification
+        working-directory: ${{ github.workspace }}
+        run: |
+          cd ${{ github.workspace }}
+          mkdir -p openwrt
+          bsdtar -xzf openwrt.tar.gz -C ${{ github.workspace }}/openwrt --strip-components=1 && rm openwrt.tar.gz
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt开始最终编译"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt开始最终编译
+          df -hT
+          
+      - name: Fix kernel config missing issue
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          LINUX_VERSION=$(grep '^CONFIG_LINUX_' .config | sed -r 's/^CONFIG_LINUX_([0-9\.]+)=y/\1/')
+          KERNEL_CONFIG_DIR="build_dir/target-x86_64_musl/linux-x86_64/linux-${LINUX_VERSION}"
+          if [ ! -f "${KERNEL_CONFIG_DIR}/.config" ]; then
+            echo "Kernel .config 文件缺失，尝试重新生成"
+            make target/linux/clean
+            make package/linux/clean
+            make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
+            make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
+            ccache -s
+          fi
+
+      - name: Final compile with CCache
+        id: final-compile
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          # 执行最终的安装和固件生成步骤
+          make package/compile -j$(($(nproc) + 1)) BUILD_PACKAGES=y CC="$CC" CXX="$CXX"
+          make package/install -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
+          make target/install -j$(($(nproc) + 1)) V=s CC="$CC" CXX="$CXX"
+          make buildinfo CC="$CC" CXX="$CXX" # 确保生成 buildinfo
+
+          # 获取设备名称
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+
+          # 获取固件路径
+          FIRMWARE_PATH=$(find bin/targets -type f \( -name '*.bin' -o -name '*.img' -o -name '*.gz' \) -print -quit | xargs dirname)
+          echo "FIRMWARE_PATH=$FIRMWARE_PATH" >> $GITHUB_ENV
+
+          ccache -s
+          df -hT
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Single-thread compile
+        id: Single-thread
+        if: failure()
+        env:
+          CC: "ccache gcc"
+          CXX: "ccache g++"
+        run: |
+          cd openwrt
+          make -j1 package/compile V=s CC="$CC" CXX="$CXX"
+          make -j1 package/install V=s CC="$CC" CXX="$CXX"
+          make -j1 target/install V=s CC="$CC" CXX="$CXX"
+          echo "status=success" >> $GITHUB_OUTPUT
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          ccache -s
+
+      # 新增步骤：收集并上传所有 .ipk 文件
+      - name: Collect IPK files
+        id: collect_ipks
+        if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success'
+        run: |
+          cd openwrt
+          # 查找所有生成的 .ipk 文件
+          find bin/packages -name '*.ipk' -type f > /tmp/ipk_list.txt
+          if [ -s /tmp/ipk_list.txt ]; then
+              echo "Found IPK files:"
+              cat /tmp/ipk_list.txt
+              # 创建一个目录存放所有 .ipk 文件
+              mkdir -p ipk_packages
+              # 复制所有 .ipk 文件到该目录
+              while IFS= read -r ipk_file; do
+                  cp "$ipk_file" ipk_packages/
+              done < /tmp/ipk_list.txt
+              # 计算 .ipk 文件数量
+              IPK_COUNT=$(find ipk_packages -name '*.ipk' | wc -l)
+              echo "IPK_COUNT=$IPK_COUNT" >> $GITHUB_OUTPUT
+              echo "status=success" >> $GITHUB_OUTPUT
+          else
+              echo "No IPK files found."
+              echo "status=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload IPK files as artifact
+        uses: actions/upload-artifact@v4
+        if: steps.collect_ipks.outputs.status == 'success'
+        with:
+          name: OpenWrt_IPKs${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+          path: openwrt/ipk_packages/
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success'
+        with:
+          name: OpenWrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+          path: openwrt/bin/packages
+
+      - name: Upload openwrt directory
+        uses: actions/upload-artifact@v4
+        if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success'
+        with:
+          name: OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+          path: openwrt/bin
+
+      - name: Organize files
+        id: organize
+        if: env.UPLOAD_FILES == 'true' && !cancelled()
+        shell: bash
+        run: |
+          cd openwrt
+          echo "status=success" >> $GITHUB_OUTPUT
+          zip -r "OpenWrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.zip" bin/packages
+          rm -rf bin/packages
+          tar -czf "OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.tar.gz" bin
+
+      - name: Upload files to cowtransfer
+        id: cowtransfer
+        if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
+        run: |
+          cd openwrt
+          curl -fsSL git.io/file-transfer | sh
+          ./transfer cow --block 2621440 -s -p 99 --hash --no-progress *.zip 2>&1 | tee cowtransfer.log
+          echo "::warning file=cowtransfer.com::$(cat cowtransfer.log | grep https)"
+          echo "url=$(cat cowtransfer.log | grep https | cut -f3 -d" ")" >> $GITHUB_OUTPUT
+
+      - name: Upload files to WeTransfer
+        id: wetransfer
+        if: steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
+        run: |
+          cd openwrt
+          curl -fsSL git.io/file-transfer | sh
+          ./transfer wet -s -p 16 --no-progress *.zip 2>&1 | tee wetransfer.log
+          echo "::warning file=wetransfer.com::$(cat wetransfer.log | grep https)"
+          echo "url=$(cat wetransfer.log | grep https | cut -f3 -d" ")" >> $GITHUB_OUTPUT
+
+      - name: Prepare IPKs for Release
+        id: prepare_ipk_release
+        if: steps.collect_ipks.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+        run: |
+          cd openwrt
+          # 如果 .ipk 文件数量不多，可以选择单独上传
+          IPK_COUNT=${{ steps.collect_ipks.outputs.IPK_COUNT }}
+          if [ "$IPK_COUNT" -le 50 ]; then # 如果 .ipk 文件少于等于 50 个
+              echo "upload_separately=true" >> $GITHUB_OUTPUT
+              echo "IPK_FILES=$(find ipk_packages -name '*.ipk' -type f | xargs)" >> $GITHUB_OUTPUT
+          else # 否则打包上传
+              echo "upload_separately=false" >> $GITHUB_OUTPUT
+              zip -r "OpenWrt_IPKs${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.zip" ipk_packages
+              echo "IPK_ARCHIVE=OpenWrt_IPKs${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.zip" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release tag
+        id: tag
+        if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+        run: |
+          echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+          touch release.txt
+          echo "# Lede 固件构建" >> release.txt
+          echo "" >> release.txt
+          echo "基于 Lede 源码构建的 OpenWrt 固件" >> release.txt
+          echo "" >> release.txt
+          [ $UPLOAD_COWTRANSFER = true ] && echo "🔗 [Cowtransfer](${{ steps.cowtransfer.outputs.url }})" >> release.txt
+          [ $UPLOAD_WETRANSFER = true ] && echo "🔗 [WeTransfer](${{ steps.wetransfer.outputs.url }})" >> release.txt
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Upload IPK files (separately) to release
+        uses: softprops/action-gh-release@v2
+        if: steps.prepare_ipk_release.outputs.upload_separately == 'true' && steps.tag.outputs.status == 'success' && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          body_path: release.txt
+          files: ${{ steps.prepare_ipk_release.outputs.IPK_FILES }}
+          append_body: true # 追加到 release 正文
+
+      - name: Upload IPK archive to release
+        uses: softprops/action-gh-release@v2
+        if: steps.prepare_ipk_release.outputs.upload_separately == 'false' && steps.tag.outputs.status == 'success' && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          body_path: release.txt
+          files: openwrt/${{ steps.prepare_ipk_release.outputs.IPK_ARCHIVE }}
+          append_body: true # 追加到 release 正文
+
+      - name: Upload other files to release
+        uses: softprops/action-gh-release@v2
+        if: steps.tag.outputs.status == 'success' && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          body_path: release.txt
+          files: |
+            openwrt/OpenWrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.zip
+            openwrt/OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.tar.gz
+
+      - name: Delete workflow runs
+        uses: GitRML/delete-workflow-runs@main
+        with:
+          retain_days: 5
+          keep_minimum_runs: 10
+
+      - name: Delete old releases
+        uses: ophub/delete-releases-workflows@main
+        with:
+          delete_releases: true
+          releases_keep_latest: 10       # 保留最新的 10 个版本
+          delete_tags: true            # 是否删除关联 tag，默认 false
+          GH_TOKEN: ${{ github.token }}
+
+      - name: WeChat notification - Final Result
+        if: (steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success') && !cancelled() && job.status == 'success'
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt编译成功"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt编译成功
+
+      - name: WeChat notification - Final Failure
+        if: failure() && !cancelled()
+        run: |
+          curl -s -o /dev/null http://www.pushplus.plus/send --data "token=${{ secrets.PUSHPLUS_TOKEN }}&content=OpenWrt编译失败"
+          # curl https://sc.ftqq.com/ ${{ secrets.SCKEY }}.send?text=OpenWrt编译失败
