@@ -54,8 +54,7 @@ rm -rf feeds/NueXini/qBittorrent-static
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
-
-echo "=== Removing mihomo conflict packages ==="
+rm -rf feeds/nikki/clashoo
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
 rm -rf feeds/small/mihomo
@@ -66,34 +65,8 @@ rm -rf feeds/liuran/mihomo
 rm -rf feeds/nikki/nikki
 rm -rf feeds/nikki/luci-app-nikki
 rm -rf feeds/nikki/clashoo
-rm -rf feeds/nikki/mihomo-alpha
-rm -rf feeds/nikki/mihomo-meta
-rm -rf feeds/small/clashoo
-rm -rf feeds/kenzo/clashoo
-rm -rf feeds/kenzok8/clashoo
-rm -rf feeds/kenzok8/luci-app-clashoo
-rm -rf feeds/xuanranran/clashoo
-rm -rf feeds/haiibo/clashoo
-rm -rf feeds/liuran/clashoo
-rm -rf package/feeds/nikki/nikki
-rm -rf package/feeds/nikki/luci-app-nikki
-rm -rf package/feeds/nikki/clashoo
-rm -rf package/feeds/nikki/mihomo-alpha
-rm -rf package/feeds/nikki/mihomo-meta
-rm -rf package/feeds/small/clashoo
-rm -rf package/feeds/kenzo/clashoo
-rm -rf package/feeds/kenzok8/clashoo
-rm -rf package/feeds/kenzok8/luci-app-clashoo
 
-sed -i '/CONFIG_PACKAGE_nikki=y/d' .config
-sed -i '/CONFIG_PACKAGE_luci-app-nikki=y/d' .config
-sed -i '/CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y/d' .config
-sed -i '/CONFIG_PACKAGE_clashoo=y/d' .config
-sed -i '/CONFIG_PACKAGE_luci-app-clashoo=y/d' .config
-sed -i '/CONFIG_PACKAGE_luci-i18n-clashoo-zh-cn/d' .config
-sed -i '/CONFIG_PACKAGE_mihomo-alpha=y/d' .config
-sed -i '/CONFIG_PACKAGE_mihomo-meta=y/d' .config
-echo "=== mihomo conflict fix done ==="
+
 
 # ./scripts/feeds update -a
 # ./scripts/feeds install -p kenzok8 luci-app-transmission
