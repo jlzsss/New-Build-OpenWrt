@@ -54,7 +54,8 @@ rm -rf feeds/NueXini/qBittorrent-static
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
-rm -rf feeds/nikki/clashoo
+
+echo "=== Removing mihomo conflict packages ==="
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
 rm -rf feeds/small/mihomo
@@ -62,32 +63,37 @@ rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
+rm -rf feeds/nikki/nikki
+rm -rf feeds/nikki/luci-app-nikki
+rm -rf feeds/nikki/clashoo
+rm -rf feeds/nikki/mihomo-alpha
+rm -rf feeds/nikki/mihomo-meta
+rm -rf feeds/small/clashoo
+rm -rf feeds/kenzo/clashoo
+rm -rf feeds/kenzok8/clashoo
+rm -rf feeds/kenzok8/luci-app-clashoo
+rm -rf feeds/xuanranran/clashoo
+rm -rf feeds/haiibo/clashoo
+rm -rf feeds/liuran/clashoo
+rm -rf package/feeds/nikki/nikki
+rm -rf package/feeds/nikki/luci-app-nikki
+rm -rf package/feeds/nikki/clashoo
+rm -rf package/feeds/nikki/mihomo-alpha
+rm -rf package/feeds/nikki/mihomo-meta
+rm -rf package/feeds/small/clashoo
+rm -rf package/feeds/kenzo/clashoo
+rm -rf package/feeds/kenzok8/clashoo
+rm -rf package/feeds/kenzok8/luci-app-clashoo
 
-# Fix clashoo: depend on nikki instead of providing its own mihomo binary
-# nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
-echo "=== Fixing clashoo mihomo conflict ==="
-CLASHOO_FOUND=0
-for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
-  if [ -f "$clashoo_makefile" ]; then
-    echo "  Found: $clashoo_makefile"
-    CLASHOO_FOUND=1
-    # Remove mihomo from PROVIDES (keep clash-meta)
-    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    echo "  -> Removed mihomo from PROVIDES"
-    # Add +nikki to DEPENDS
-    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +nikki/' "$clashoo_makefile"
-    echo "  -> Added +nikki to DEPENDS"
-    # Remove the Go binary install line (clashoo uses nikki's mihomo)
-    sed -i '\|$(call GoPackage/Package/Install/Bin,|d' "$clashoo_makefile"
-    echo "  -> Removed Go binary install"
-  fi
-done
-if [ "$CLASHOO_FOUND" -eq 0 ]; then
-  echo "  WARNING: clashoo Makefile not found in any expected location!"
-fi
-echo "=== clashoo fix done ==="
-
+sed -i '/CONFIG_PACKAGE_nikki=y/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-nikki=y/d' .config
+sed -i '/CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y/d' .config
+sed -i '/CONFIG_PACKAGE_clashoo=y/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-clashoo=y/d' .config
+sed -i '/CONFIG_PACKAGE_luci-i18n-clashoo-zh-cn/d' .config
+sed -i '/CONFIG_PACKAGE_mihomo-alpha=y/d' .config
+sed -i '/CONFIG_PACKAGE_mihomo-meta=y/d' .config
+echo "=== mihomo conflict fix done ==="
 
 # ./scripts/feeds update -a
 # ./scripts/feeds install -p kenzok8 luci-app-transmission
