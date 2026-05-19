@@ -54,18 +54,107 @@ rm -rf feeds/NueXini/qBittorrent-static
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
-rm -rf feeds/nikki/clashoo
+
+# ============================================================
+# Fix nikki/mihomo/clashoo file conflict
+#
+# Problem: nikki, mihomo, and clashoo all install /usr/bin/mihomo
+#   - nikki: compiles mihomo from source, installs to /usr/libexec/nikki,
+#            then uses ALTERNATIVES to create /usr/bin/mihomo symlink
+#   - mihomo: compiles mihomo from source, installs directly to /usr/bin/mihomo
+#   - clashoo: similar to nikki, also provides /usr/bin/mihomo
+#
+# Solution:
+#   1. Patch nikki Makefile: remove mihomo binary compilation/installation,
+#      add +mihomo dependency so it uses the standalone mihomo package
+#   2. Patch clashoo Makefile: same approach as nikki
+#   3. Keep one mihomo package (from small feed) as the sole provider
+#   4. Remove duplicate mihomo packages from other feeds
+#   5. Reinstall the patched feeds so the package index is updated
+# ============================================================
+
+echo "=== Step 1: Remove duplicate mihomo packages ==="
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
-rm -rf feeds/small/mihomo
 rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
-rm -rf feeds/nikki/nikki
-rm -rf feeds/nikki/luci-app-nikki
-rm -rf feeds/nikki/clashoo
+echo "  Removed mihomo from kenzok8, kenzo, xuanranran, haiibo, liuran feeds"
+echo "  Keeping feeds/small/mihomo as the sole mihomo provider"
 
+echo "=== Step 2: Patch nikki Makefile ==="
+NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+if [ -f "$NIKKI_MAKEFILE" ]; then
+  echo "  Found: $NIKKI_MAKEFILE"
+
+  # Remove PROVIDES:=mihomo - nikki should not claim to provide mihomo
+  sed -i '/PROVIDES:=mihomo/d' "$NIKKI_MAKEFILE"
+
+  # Remove ALTERNATIVES - nikki should not create /usr/bin/mihomo
+  sed -i '/ALTERNATIVES:=/d' "$NIKKI_MAKEFILE"
+
+  # Add +mihomo to DEPENDS - nikki depends on mihomo package for the binary
+  sed -i 's/^\(  DEPENDS:=.*\)/\1 +mihomo/' "$NIKKI_MAKEFILE"
+
+  # Remove Go compilation - nikki no longer compiles mihomo itself
+  sed -i '/^PKG_BUILD_DEPENDS:=golang\/host/d' "$NIKKI_MAKEFILE"
+  sed -i '/^include.*golang-package\.mk/d' "$NIKKI_MAKEFILE"
+  sed -i '/^GO_PKG:=/d' "$NIKKI_MAKEFILE"
+  sed -i '/^GO_PKG_LDFLAGS_X:=/d' "$NIKKI_MAKEFILE"
+  sed -i '/^GO_PKG_TAGS:=/d' "$NIKKI_MAKEFILE"
+
+  # Remove Go binary install lines
+  sed -i '/^\t\$(call GoPackage\/Package\/Install\/Bin,/d' "$NIKKI_MAKEFILE"
+  sed -i '/^\t\$(INSTALL_BIN).*mihomo.*\/usr\/libexec\/nikki/d' "$NIKKI_MAKEFILE"
+  sed -i '/^\$(eval \$(call GoBinPackage/d' "$NIKKI_MAKEFILE"
+
+  # Add symlink /usr/libexec/nikki -> /usr/bin/mihomo
+  # nikki's init script expects /usr/libexec/nikki
+  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec/\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
+
+  echo "  nikki Makefile patched: removed mihomo binary, added +mihomo dep"
+else
+  echo "  WARNING: $NIKKI_MAKEFILE not found!"
+fi
+
+echo "=== Step 3: Patch clashoo Makefile ==="
+for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
+  if [ -f "$clashoo_makefile" ]; then
+    echo "  Found: $clashoo_makefile"
+
+    # Remove mihomo from PROVIDES
+    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
+    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
+    # Handle case where PROVIDES is only mihomo
+    sed -i '/^  PROVIDES:=mihomo$/d' "$clashoo_makefile"
+
+    # Remove ALTERNATIVES for mihomo
+    sed -i '/ALTERNATIVES.*mihomo/d' "$clashoo_makefile"
+
+    # Add +mihomo to DEPENDS
+    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +mihomo/' "$clashoo_makefile"
+
+    # Remove Go binary install
+    sed -i '/^\t\$(call GoPackage\/Package\/Install\/Bin,/d' "$clashoo_makefile"
+    sed -i '/^\t\$(INSTALL_BIN).*mihomo/d' "$clashoo_makefile"
+
+    # Add symlink /usr/libexec/clashoo -> /usr/bin/mihomo if needed
+    echo "  -> Patched clashoo Makefile"
+  fi
+done
+
+echo "=== Step 4: Reinstall patched feeds to update package index ==="
+./scripts/feeds install -p nikki nikki
+./scripts/feeds install -p nikki luci-app-nikki
+for clashoo_dir in feeds/small/clashoo feeds/kenzo/clashoo feeds/kenzok8/clashoo; do
+  if [ -d "$clashoo_dir" ]; then
+    feed_name=$(echo "$clashoo_dir" | cut -d/ -f2)
+    ./scripts/feeds install -p "$feed_name" clashoo
+  fi
+done
+
+echo "=== mihomo conflict fix done ==="
 
 
 # ./scripts/feeds update -a
