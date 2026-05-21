@@ -162,45 +162,48 @@ echo "=== mihomo conflict fix done ==="
 # Problem: fchomo postinst checks OpenWrt version >= 24.10
 # During make package/install, /etc/openwrt_release may not
 # exist in staging root, causing postinst to fail with exit 1
+#
+# Solution: Replace the postinst with a no-op script
 # ============================================================
 
 echo "=== Fixing luci-app-fchomo postinst version check ==="
-FCHOMO_POSTINST="feeds/helloworld/luci-app-fchomo/files/luci-app-fchomo.postinst"
-if [ -f "$FCHOMO_POSTINST" ]; then
-  echo "  Found: $FCHOMO_POSTINST"
-  # Patch: make version check always pass (exit 0 instead of exit 1)
-  sed -i 's/Minimum OpenWrt version required is/# [patched] Minimum OpenWrt version required is/' "$FCHOMO_POSTINST"
-  sed -i 's/exit 1/exit 0/g' "$FCHOMO_POSTINST"
-  echo "  -> Patched: version check now passes"
-elif [ -d "feeds/helloworld/luci-app-fchomo" ]; then
-  echo "  luci-app-fchomo dir exists but postinst file not found at expected path"
-  FCHOMO_FILES=$(find feeds/helloworld/luci-app-fchomo -name "*.postinst" 2>/dev/null)
-  if [ -n "$FCHOMO_FILES" ]; then
-    for pf in $FCHOMO_FILES; do
-      echo "  Found postinst: $pf"
-      sed -i 's/Minimum OpenWrt version required is/# [patched] Minimum OpenWrt version required is/' "$pf"
-      sed -i 's/exit 1/exit 0/g' "$pf"
-      echo "  -> Patched: $pf"
-    done
-  else
-    echo "  WARNING: No .postinst files found, trying alternative fix..."
-    # Alternative: find and patch any file containing the version check
-    grep -rl "24.10" feeds/helloworld/luci-app-fchomo/ 2>/dev/null | while read -r vf; do
-      if grep -q "exit 1" "$vf" 2>/dev/null; then
-        sed -i 's/exit 1/exit 0/g' "$vf"
-        echo "  -> Patched: $vf (replaced exit 1 with exit 0)"
-      fi
-    done
+
+# Find fchomo feed directory
+FCHOMO_DIR=""
+for d in feeds/helloworld/luci-app-fchomo feeds/small/luci-app-fchomo feeds/kenzo/luci-app-fchomo feeds/kenzok8/luci-app-fchomo; do
+  if [ -d "$d" ]; then
+    FCHOMO_DIR="$d"
+    break
+  fi
+done
+
+if [ -n "$FCHOMO_DIR" ]; then
+  echo "  Found fchomo at: $FCHOMO_DIR"
+  
+  # Create files directory if not exists
+  mkdir -p "$FCHOMO_DIR/files"
+  
+  # Replace postinst with a no-op script
+  cat > "$FCHOMO_DIR/files/luci-app-fchomo.postinst" << 'POSTINST_EOF'
+#!/bin/sh
+# [patched] Original version check removed - always succeeds
+exit 0
+POSTINST_EOF
+  chmod 755 "$FCHOMO_DIR/files/luci-app-fchomo.postinst"
+  echo "  -> Replaced postinst with no-op script"
+  
+  # Also check if there's a preinst script
+  if [ -f "$FCHOMO_DIR/files/luci-app-fchomo.preinst" ]; then
+    cat > "$FCHOMO_DIR/files/luci-app-fchomo.preinst" << 'PREINST_EOF'
+#!/bin/sh
+# [patched] Original preinst removed - always succeeds
+exit 0
+PREINST_EOF
+    chmod 755 "$FCHOMO_DIR/files/luci-app-fchomo.preinst"
+    echo "  -> Also replaced preinst with no-op script"
   fi
 else
-  echo "  WARNING: luci-app-fchomo not found in helloworld feed"
-fi
-
-# Also handle AdGuardHome warnings (non-fatal but noisy)
-echo "=== Checking AdGuardHome references ==="
-if [ ! -d "feeds/helloworld/AdGuardHome" ] && [ ! -d "feeds/packages/net/AdGuardHome" ]; then
-  echo "  Note: AdGuardHome package not found in local feeds"
-  echo "  The chmod warnings are harmless (missing optional package)"
+  echo "  WARNING: luci-app-fchomo not found in any feed"
 fi
 
 echo "=== fchomo postinst fix done ==="
