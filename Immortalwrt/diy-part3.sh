@@ -71,6 +71,51 @@ rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
+# Keep feeds/nikki/mihomo as the sole mihomo provider for nikki/clashoo
+
+# ============================================================
+# Fix nikki: make it depend on mihomo feed package instead of building its own
+# ============================================================
+
+echo "=== Fixing nikki mihomo conflict ==="
+NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+
+if [ -f "$NIKKI_MAKEFILE" ]; then
+  echo "  Found: $NIKKI_MAKEFILE"
+  
+  # Remove PROVIDES mihomo
+  sed -i '/PROVIDES:=mihomo/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed PROVIDES:=mihomo"
+  
+  # Remove ALTERNATIVES
+  sed -i '/ALTERNATIVES:=/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed ALTERNATIVES"
+  
+  # Add +mihomo to DEPENDS
+  sed -i 's/^\(  DEPENDS:=.*\)/\1 +mihomo/' "$NIKKI_MAKEFILE"
+  echo "  -> Added +mihomo to DEPENDS"
+  
+  # Remove all Go build related lines
+  sed -i '/GO_PKG/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_ARGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL_EXTRA/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_LDFLAGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_TAGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_MOD_CACHE/d' "$NIKKI_MAKEFILE"
+  sed -i '/GoPackage\/Package/d' "$NIKKI_MAKEFILE"
+  sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_PKG/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_DIR/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL_BIN/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed Go build logic"
+  
+  # Add symlink for init scripts
+  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
+  echo "  -> Added symlink /usr/libexec/nikki -> /usr/bin/mihomo"
+else
+  echo "  WARNING: nikki Makefile not found!"
+fi
+echo "=== nikki fix done ==="
 
 # Fix clashoo: depend on nikki instead of providing its own mihomo binary
 # nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
