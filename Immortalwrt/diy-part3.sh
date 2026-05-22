@@ -142,64 +142,6 @@ if [ "$CLASHOO_FOUND" -eq 0 ]; then
 fi
 echo "=== clashoo fix done ==="
 
-# ============================================================
-# Fix luci-app-fchomo postinst version check failure
-# ============================================================
-
-echo "=== Fixing luci-app-fchomo postinst version check ==="
-
-# Function to patch postinst file
-patch_postinst() {
-  local target_dir="$1"
-  if [ -d "$target_dir" ]; then
-    mkdir -p "$target_dir/files"
-    cat > "$target_dir/files/luci-app-fchomo.postinst" << 'POSTINST_EOF'
-#!/bin/sh
-# [patched] Original version check removed - always succeeds
-exit 0
-POSTINST_EOF
-    chmod 755 "$target_dir/files/luci-app-fchomo.postinst"
-    echo "  -> Patched: $target_dir"
-    
-    # Also patch preinst if exists
-    if [ -f "$target_dir/files/luci-app-fchomo.preinst" ]; then
-      cat > "$target_dir/files/luci-app-fchomo.preinst" << 'PREINST_EOF'
-#!/bin/sh
-# [patched] Original preinst removed - always succeeds
-exit 0
-PREINST_EOF
-      chmod 755 "$target_dir/files/luci-app-fchomo.preinst"
-      echo "  -> Also patched preinst: $target_dir"
-    fi
-  fi
-}
-
-# Patch both feed source and package/feeds copy
-PATCHED=0
-for feed_dir in feeds/helloworld/luci-app-fchomo feeds/small/luci-app-fchomo feeds/kenzo/luci-app-fchomo feeds/kenzok8/luci-app-fchomo; do
-  patch_postinst "$feed_dir"
-  PATCHED=1
-done
-
-for pkg_dir in package/feeds/helloworld/luci-app-fchomo package/feeds/small/luci-app-fchomo package/feeds/kenzo/luci-app-fchomo package/feeds/kenzok8/luci-app-fchomo; do
-  patch_postinst "$pkg_dir"
-  PATCHED=1
-done
-
-# Reinstall the feed to make sure changes are picked up
-if [ "$PATCHED" -eq 1 ]; then
-  echo "  -> Reinstalling luci-app-fchomo feed..."
-  for feed in helloworld small kenzo kenzok8; do
-    if [ -d "feeds/$feed/luci-app-fchomo" ]; then
-      ./scripts/feeds install -p "$feed" luci-app-fchomo 2>/dev/null || true
-    fi
-  done
-fi
-
-if [ "$PATCHED" -eq 0 ]; then
-  echo "  WARNING: luci-app-fchomo not found in any feed!"
-fi
-echo "=== fchomo postinst fix done ==="
 
 
 # ./scripts/feeds update -a
