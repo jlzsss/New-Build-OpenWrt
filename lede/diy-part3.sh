@@ -80,79 +80,90 @@ rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
+rm -rf package/feeds/kenzok8/mihomo
+rm -rf package/feeds/kenzo/mihomo
+rm -rf package/feeds/xuanranran/mihomo
+rm -rf package/feeds/haiibo/mihomo
+rm -rf package/feeds/liuran/mihomo
 echo "  Removed mihomo from kenzok8, kenzo, xuanranran, haiibo, liuran feeds"
 echo "  Keeping feeds/small/mihomo as the sole mihomo provider"
 
 echo "=== Step 2: Patch nikki Makefile ==="
-NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
-if [ -f "$NIKKI_MAKEFILE" ]; then
-  echo "  Found: $NIKKI_MAKEFILE"
+patch_nikki_makefile() {
+  local makefile="$1"
+  if [ ! -f "$makefile" ]; then
+    echo "  WARNING: $makefile not found!"
+    return 1
+  fi
+  
+  echo "  Patching: $makefile"
+  
+  sed -i '/PROVIDES:=/d' "$makefile"
+  sed -i '/ALTERNATIVES:=/d' "$makefile"
+  sed -i '/mihomo/d' "$makefile"
+  sed -i '/GoBinPackage/d' "$makefile"
+  sed -i '/GoPackage/d' "$makefile"
+  sed -i '/golang-build/d' "$makefile"
+  sed -i '/GO_PKG/d' "$makefile"
+  sed -i '/GO_BUILD/d' "$makefile"
+  sed -i '/GO_MOD/d' "$makefile"
+  sed -i '/GO_INSTALL/d' "$makefile"
+  sed -i '/GO_LDFLAGS/d' "$makefile"
+  sed -i '/GO_TAGS/d' "$makefile"
+  sed -i '/GO_EXTRA/d' "$makefile"
+  sed -i '/GOLANG_PKG/d' "$makefile"
+  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$makefile"
+  sed -i '/include.*golang/d' "$makefile"
+  sed -i '/\/usr\/bin\/mihomo/d' "$makefile"
+  sed -i '/\/usr\/libexec\/nikki/d' "$makefile"
+  
+  if ! grep -q '+mihomo' "$makefile"; then
+    sed -i 's/^\(  DEPENDS:=\)/\1 +mihomo/' "$makefile"
+  fi
+  
+  sed -i '/^define Package\/nikki\/install$/,/^endef$/d' "$makefile"
+  sed -i '/^define Package\/nikki\/install$/a\\t$(INSTALL_DIR) $(1)/usr/libexec/\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki\n\t$(INSTALL_DIR) $(1)/etc/init.d\n\t$(INSTALL_BIN) ./files/nikki.init $(1)/etc/init.d/nikki' "$makefile"
+  
+  echo "  -> Done: $makefile"
+}
 
-  # Remove PROVIDES:=mihomo - nikki should not claim to provide mihomo
-  sed -i '/PROVIDES:=mihomo/d' "$NIKKI_MAKEFILE"
-
-  # Remove ALTERNATIVES - nikki should not create /usr/bin/mihomo
-  sed -i '/ALTERNATIVES:=/d' "$NIKKI_MAKEFILE"
-
-  # Add +mihomo to DEPENDS - nikki depends on mihomo package for the binary
-  sed -i 's/^\(  DEPENDS:=.*\)/\1 +mihomo/' "$NIKKI_MAKEFILE"
-
-  # Remove Go compilation - nikki no longer compiles mihomo itself
-  sed -i '/^PKG_BUILD_DEPENDS:=golang\/host/d' "$NIKKI_MAKEFILE"
-  sed -i '/^include.*golang-package\.mk/d' "$NIKKI_MAKEFILE"
-  sed -i '/^GO_PKG:=/d' "$NIKKI_MAKEFILE"
-  sed -i '/^GO_PKG_LDFLAGS_X:=/d' "$NIKKI_MAKEFILE"
-  sed -i '/^GO_PKG_TAGS:=/d' "$NIKKI_MAKEFILE"
-
-  # Remove Go binary install lines
-  sed -i '/^\t\$(call GoPackage\/Package\/Install\/Bin,/d' "$NIKKI_MAKEFILE"
-  sed -i '/^\t\$(INSTALL_BIN).*mihomo.*\/usr\/libexec\/nikki/d' "$NIKKI_MAKEFILE"
-  sed -i '/^\$(eval \$(call GoBinPackage/d' "$NIKKI_MAKEFILE"
-
-  # Add symlink /usr/libexec/nikki -> /usr/bin/mihomo
-  # nikki's init script expects /usr/libexec/nikki
-  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec/\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
-
-  echo "  nikki Makefile patched: removed mihomo binary, added +mihomo dep"
-else
-  echo "  WARNING: $NIKKI_MAKEFILE not found!"
-fi
+patch_nikki_makefile "feeds/nikki/nikki/Makefile"
+patch_nikki_makefile "package/feeds/nikki/nikki/Makefile"
 
 echo "=== Step 3: Patch clashoo Makefile ==="
-for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
-  if [ -f "$clashoo_makefile" ]; then
-    echo "  Found: $clashoo_makefile"
-
-    # Remove mihomo from PROVIDES
-    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
-    # Handle case where PROVIDES is only mihomo
-    sed -i '/^  PROVIDES:=mihomo$/d' "$clashoo_makefile"
-
-    # Remove ALTERNATIVES for mihomo
-    sed -i '/ALTERNATIVES.*mihomo/d' "$clashoo_makefile"
-
-    # Add +mihomo to DEPENDS
-    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +mihomo/' "$clashoo_makefile"
-
-    # Remove Go binary install
-    sed -i '/^\t\$(call GoPackage\/Package\/Install\/Bin,/d' "$clashoo_makefile"
-    sed -i '/^\t\$(INSTALL_BIN).*mihomo/d' "$clashoo_makefile"
-
-    # Add symlink /usr/libexec/clashoo -> /usr/bin/mihomo if needed
-    echo "  -> Patched clashoo Makefile"
+patch_clashoo_makefile() {
+  local makefile="$1"
+  if [ ! -f "$makefile" ]; then
+    return 1
   fi
+  
+  echo "  Patching: $makefile"
+  sed -i '/PROVIDES:=/d' "$makefile"
+  sed -i '/ALTERNATIVES:=/d' "$makefile"
+  sed -i '/mihomo/d' "$makefile"
+  sed -i '/GoBinPackage/d' "$makefile"
+  sed -i '/GoPackage/d' "$makefile"
+  sed -i '/golang-build/d' "$makefile"
+  sed -i '/GO_PKG/d' "$makefile"
+  sed -i '/GO_BUILD/d' "$makefile"
+  
+  if ! grep -q '+mihomo' "$makefile"; then
+    sed -i 's/^\(  DEPENDS:=\)/\1 +mihomo/' "$makefile"
+  fi
+  
+  echo "  -> Done: $makefile"
+}
+
+for cf in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile \
+          package/feeds/small/clashoo/Makefile package/feeds/kenzo/clashoo/Makefile package/feeds/kenzok8/clashoo/Makefile; do
+  patch_clashoo_makefile "$cf"
 done
 
-echo "=== Step 4: Reinstall patched feeds to update package index ==="
-./scripts/feeds install -p nikki nikki
-./scripts/feeds install -p nikki luci-app-nikki
-for clashoo_dir in feeds/small/clashoo feeds/kenzo/clashoo feeds/kenzok8/clashoo; do
-  if [ -d "$clashoo_dir" ]; then
-    feed_name=$(echo "$clashoo_dir" | cut -d/ -f2)
-    ./scripts/feeds install -p "$feed_name" clashoo
-  fi
-done
+echo "=== Step 4: Update feeds ==="
+./scripts/feeds install -p nikki nikki luci-app-nikki 2>/dev/null || true
+./scripts/feeds install -p small clashoo 2>/dev/null || true
+./scripts/feeds install -p kenzo clashoo 2>/dev/null || true
+./scripts/feeds install -p kenzok8 clashoo 2>/dev/null || true
 
 echo "=== mihomo conflict fix done ==="
 
