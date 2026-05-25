@@ -98,9 +98,14 @@ patch_nikki_makefile() {
   
   echo "  Patching: $makefile"
   
+  # Step 1: Remove old install section (entire block)
+  sed -i '/^define Package\/nikki\/install$/,/^endef$/d' "$makefile"
+  
+  # Step 2: Remove PROVIDES and ALTERNATIVES (mihomo conflict)
   sed -i '/PROVIDES:=/d' "$makefile"
   sed -i '/ALTERNATIVES:=/d' "$makefile"
-  sed -i '/mihomo/d' "$makefile"
+  
+  # Step 3: Remove all Go compilation related lines
   sed -i '/GoBinPackage/d' "$makefile"
   sed -i '/GoPackage/d' "$makefile"
   sed -i '/golang-build/d' "$makefile"
@@ -114,15 +119,26 @@ patch_nikki_makefile() {
   sed -i '/GOLANG_PKG/d' "$makefile"
   sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$makefile"
   sed -i '/include.*golang/d' "$makefile"
+  
+  # Step 4: Remove old mihomo binary install lines
   sed -i '/\/usr\/bin\/mihomo/d' "$makefile"
   sed -i '/\/usr\/libexec\/nikki/d' "$makefile"
   
+  # Step 5: Add +mihomo dependency
   if ! grep -q '+mihomo' "$makefile"; then
     sed -i 's/^\(  DEPENDS:=\)/\1 +mihomo/' "$makefile"
   fi
   
-  sed -i '/^define Package\/nikki\/install$/,/^endef$/d' "$makefile"
-  sed -i '/^define Package\/nikki\/install$/a\\t$(INSTALL_DIR) $(1)/usr/libexec/\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki\n\t$(INSTALL_DIR) $(1)/etc/init.d\n\t$(INSTALL_BIN) ./files/nikki.init $(1)/etc/init.d/nikki' "$makefile"
+  # Step 6: Append new clean install section at end of file
+  cat >> "$makefile" << 'INSTALL_EOF'
+
+define Package/nikki/install
+	$(INSTALL_DIR) $(1)/usr/libexec/
+	$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/nikki.init $(1)/etc/init.d/nikki
+endef
+INSTALL_EOF
   
   echo "  -> Done: $makefile"
 }
