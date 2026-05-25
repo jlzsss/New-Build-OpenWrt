@@ -138,15 +138,21 @@ patch_clashoo_makefile() {
   fi
   
   echo "  Patching: $makefile"
-  sed -i '/PROVIDES:=/d' "$makefile"
-  sed -i '/ALTERNATIVES:=/d' "$makefile"
-  sed -i '/mihomo/d' "$makefile"
-  sed -i '/GoBinPackage/d' "$makefile"
-  sed -i '/GoPackage/d' "$makefile"
-  sed -i '/golang-build/d' "$makefile"
-  sed -i '/GO_PKG/d' "$makefile"
-  sed -i '/GO_BUILD/d' "$makefile"
   
+  # Only remove mihomo from PROVIDES (keep other PROVIDES like clash-meta)
+  sed -i 's/PROVIDES:=.*mihomo[^ ]* *//g; s/PROVIDES:= $//; s/PROVIDES:= */PROVIDES:=/' "$makefile"
+  # Remove empty PROVIDES lines
+  sed -i '/^  PROVIDES:=$/d' "$makefile"
+  
+  # Remove ALTERNATIVES lines that reference mihomo
+  sed -i '/ALTERNATIVES.*mihomo/d' "$makefile"
+  
+  # Remove Go binary install lines for mihomo only
+  sed -i '/GoPackage.*Install.*Bin.*mihomo/d' "$makefile"
+  sed -i '/INSTALL_BIN.*\/usr\/bin\/mihomo/d' "$makefile"
+  sed -i '/INSTALL_BIN.*\/usr\/libexec.*clashoo.*mihomo/d' "$makefile"
+  
+  # Add +mihomo to DEPENDS if not already there
   if ! grep -q '+mihomo' "$makefile"; then
     sed -i 's/^\(  DEPENDS:=\)/\1 +mihomo/' "$makefile"
   fi
