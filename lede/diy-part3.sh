@@ -56,25 +56,17 @@ rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
 
 # ============================================================
-# Fix nikki/mihomo/clashoo file conflict
+# Fix 1: Remove duplicate mihomo packages (keep only one provider)
 # ============================================================
+echo "=== Removing duplicate mihomo packages ==="
+rm -rf feeds/kenzok8/mihomo feeds/kenzo/mihomo feeds/xuanranran/mihomo feeds/haiibo/mihomo feeds/liuran/mihomo
+rm -rf package/feeds/kenzok8/mihomo package/feeds/kenzo/mihomo package/feeds/xuanranran/mihomo package/feeds/haiibo/mihomo package/feeds/liuran/mihomo
+echo "  Done: Keeping feeds/small/mihomo as sole mihomo provider"
 
-echo "=== Step 1: Remove duplicate mihomo packages ==="
-rm -rf feeds/kenzok8/mihomo
-rm -rf feeds/kenzok8/luci-app-mihomo
-rm -rf feeds/kenzo/mihomo
-rm -rf feeds/xuanranran/mihomo
-rm -rf feeds/haiibo/mihomo
-rm -rf feeds/liuran/mihomo
-rm -rf package/feeds/kenzok8/mihomo
-rm -rf package/feeds/kenzo/mihomo
-rm -rf package/feeds/xuanranran/mihomo
-rm -rf package/feeds/haiibo/mihomo
-rm -rf package/feeds/liuran/mihomo
-echo "  Removed mihomo from kenzok8, kenzo, xuanranran, haiibo, liuran feeds"
-echo "  Keeping feeds/small/mihomo as the sole mihomo provider"
-
-echo "=== Step 2: Patch nikki Makefile ==="
+# ============================================================
+# Fix 2: Patch nikki Makefile - depend on mihomo instead of providing it
+# ============================================================
+echo "=== Patching nikki Makefile ==="
 patch_nikki_makefile() {
   local makefile="$1"
   if [ ! -f "$makefile" ]; then
@@ -84,14 +76,14 @@ patch_nikki_makefile() {
   
   echo "  Patching: $makefile"
   
-  # Step 1: Remove old install section (entire block)
+  # Remove old install section (entire block)
   sed -i '/^define Package\/nikki\/install$/,/^endef$/d' "$makefile"
   
-  # Step 2: Remove PROVIDES and ALTERNATIVES (mihomo conflict)
+  # Remove PROVIDES and ALTERNATIVES (mihomo conflict)
   sed -i '/PROVIDES:=/d' "$makefile"
   sed -i '/ALTERNATIVES:=/d' "$makefile"
   
-  # Step 3: Remove all Go compilation related lines
+  # Remove all Go compilation related lines
   sed -i '/GoBinPackage/d' "$makefile"
   sed -i '/GoPackage/d' "$makefile"
   sed -i '/golang-build/d' "$makefile"
@@ -106,16 +98,18 @@ patch_nikki_makefile() {
   sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$makefile"
   sed -i '/include.*golang/d' "$makefile"
   
-  # Step 4: Remove old mihomo binary install lines
-  sed -i '/\/usr\/bin\/mihomo/d' "$makefile"
+  # Remove old mihomo binary install lines (but keep symlink in new install section)
   sed -i '/\/usr\/libexec\/nikki/d' "$makefile"
-  
-  # Step 5: Add +mihomo dependency
+
+  # Remove empty Build/Compile section if exists
+  sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
+
+  # Add +mihomo dependency with proper spacing (handle various indent formats)
   if ! grep -q '+mihomo' "$makefile"; then
-    sed -i 's/^\(  DEPENDS:=\)/\1 +mihomo/' "$makefile"
+    sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
   fi
   
-  # Step 6: Append new clean install section at end of file
+  # Append new clean install section at end of file
   cat >> "$makefile" << 'INSTALL_EOF'
 
 define Package/nikki/install
@@ -132,7 +126,10 @@ INSTALL_EOF
 patch_nikki_makefile "feeds/nikki/nikki/Makefile"
 patch_nikki_makefile "package/feeds/nikki/nikki/Makefile"
 
-echo "=== Step 3: Patch clashoo Makefile ==="
+# ============================================================
+# Fix 3: Patch clashoo Makefile - depend on mihomo instead of providing it
+# ============================================================
+echo "=== Patching clashoo Makefile ==="
 patch_clashoo_makefile() {
   local makefile="$1"
   if [ ! -f "$makefile" ]; then
@@ -153,10 +150,13 @@ patch_clashoo_makefile() {
   sed -i '/GoPackage.*Install.*Bin.*mihomo/d' "$makefile"
   sed -i '/INSTALL_BIN.*\/usr\/bin\/mihomo/d' "$makefile"
   sed -i '/INSTALL_BIN.*\/usr\/libexec.*clashoo.*mihomo/d' "$makefile"
-  
-  # Add +mihomo to DEPENDS if not already there
+
+  # Remove symlink to /usr/bin/mihomo from clashoo install section
+  sed -i '/LN.*\/usr\/bin\/mihomo/d' "$makefile"
+
+  # Add +mihomo to DEPENDS with proper spacing if not already there (handle various indent formats)
   if ! grep -q '+mihomo' "$makefile"; then
-    sed -i 's/^\(  DEPENDS:=\)/\1 +mihomo/' "$makefile"
+    sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
   fi
   
   echo "  -> Done: $makefile"
@@ -167,65 +167,8 @@ for cf in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok
   patch_clashoo_makefile "$cf"
 done
 
-echo "=== Step 4: Update feeds ==="
-./scripts/feeds install -p nikki nikki luci-app-nikki 2>/dev/null || true
-./scripts/feeds install -p small clashoo 2>/dev/null || true
-./scripts/feeds install -p kenzo clashoo 2>/dev/null || true
-./scripts/feeds install -p kenzok8 clashoo 2>/dev/null || true
+echo "=== All fixes applied successfully ==="
 
-echo "=== mihomo conflict fix done ==="
 
-# ============================================================
-# Fix luci-app-fchomo postinst version check failure
-# ============================================================
 
-echo "=== Fixing luci-app-fchomo postinst version check ==="
 
-patch_postinst() {
-  local target_dir="$1"
-  if [ -d "$target_dir" ]; then
-    mkdir -p "$target_dir/files"
-    cat > "$target_dir/files/luci-app-fchomo.postinst" << 'POSTINST_EOF'
-#!/bin/sh
-# [patched] Original version check removed - always succeeds
-exit 0
-POSTINST_EOF
-    chmod 755 "$target_dir/files/luci-app-fchomo.postinst"
-    echo "  -> Patched: $target_dir"
-    
-    if [ -f "$target_dir/files/luci-app-fchomo.preinst" ]; then
-      cat > "$target_dir/files/luci-app-fchomo.preinst" << 'PREINST_EOF'
-#!/bin/sh
-# [patched] Original preinst removed - always succeeds
-exit 0
-PREINST_EOF
-      chmod 755 "$target_dir/files/luci-app-fchomo.preinst"
-      echo "  -> Also patched preinst: $target_dir"
-    fi
-  fi
-}
-
-PATCHED=0
-for feed_dir in feeds/helloworld/luci-app-fchomo feeds/small/luci-app-fchomo feeds/kenzo/luci-app-fchomo feeds/kenzok8/luci-app-fchomo; do
-  patch_postinst "$feed_dir"
-  PATCHED=1
-done
-
-for pkg_dir in package/feeds/helloworld/luci-app-fchomo package/feeds/small/luci-app-fchomo package/feeds/kenzo/luci-app-fchomo package/feeds/kenzok8/luci-app-fchomo; do
-  patch_postinst "$pkg_dir"
-  PATCHED=1
-done
-
-if [ "$PATCHED" -eq 1 ]; then
-  echo "  -> Reinstalling luci-app-fchomo feed..."
-  for feed in helloworld small kenzo kenzok8; do
-    if [ -d "feeds/$feed/luci-app-fchomo" ]; then
-      ./scripts/feeds install -p "$feed" luci-app-fchomo 2>/dev/null || true
-    fi
-  done
-fi
-
-if [ "$PATCHED" -eq 0 ]; then
-  echo "  WARNING: luci-app-fchomo not found in any feed!"
-fi
-echo "=== fchomo postinst fix done ==="
