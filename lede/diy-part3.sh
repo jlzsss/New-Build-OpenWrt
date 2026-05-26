@@ -57,20 +57,6 @@ rm -rf feeds/NueXini/rblibtorrent
 
 # ============================================================
 # Fix nikki/mihomo/clashoo file conflict
-#
-# Problem: nikki, mihomo, and clashoo all install /usr/bin/mihomo
-#   - nikki: compiles mihomo from source, installs to /usr/libexec/nikki,
-#            then uses ALTERNATIVES to create /usr/bin/mihomo symlink
-#   - mihomo: compiles mihomo from source, installs directly to /usr/bin/mihomo
-#   - clashoo: similar to nikki, also provides /usr/bin/mihomo
-#
-# Solution:
-#   1. Patch nikki Makefile: remove mihomo binary compilation/installation,
-#      add +mihomo dependency so it uses the standalone mihomo package
-#   2. Patch clashoo Makefile: same approach as nikki
-#   3. Keep one mihomo package (from small feed) as the sole provider
-#   4. Remove duplicate mihomo packages from other feeds
-#   5. Reinstall the patched feeds so the package index is updated
 # ============================================================
 
 echo "=== Step 1: Remove duplicate mihomo packages ==="
@@ -191,17 +177,10 @@ echo "=== mihomo conflict fix done ==="
 
 # ============================================================
 # Fix luci-app-fchomo postinst version check failure
-#
-# Problem: fchomo postinst checks OpenWrt version >= 24.10
-# During make package/install, /etc/openwrt_release may not
-# exist in staging root, causing postinst to fail with exit 1
-#
-# Solution: Replace the postinst with a no-op script
 # ============================================================
 
 echo "=== Fixing luci-app-fchomo postinst version check ==="
 
-# Function to patch postinst file
 patch_postinst() {
   local target_dir="$1"
   if [ -d "$target_dir" ]; then
@@ -214,7 +193,6 @@ POSTINST_EOF
     chmod 755 "$target_dir/files/luci-app-fchomo.postinst"
     echo "  -> Patched: $target_dir"
     
-    # Also patch preinst if exists
     if [ -f "$target_dir/files/luci-app-fchomo.preinst" ]; then
       cat > "$target_dir/files/luci-app-fchomo.preinst" << 'PREINST_EOF'
 #!/bin/sh
@@ -227,7 +205,6 @@ PREINST_EOF
   fi
 }
 
-# Patch both feed source and package/feeds copy
 PATCHED=0
 for feed_dir in feeds/helloworld/luci-app-fchomo feeds/small/luci-app-fchomo feeds/kenzo/luci-app-fchomo feeds/kenzok8/luci-app-fchomo; do
   patch_postinst "$feed_dir"
@@ -239,7 +216,6 @@ for pkg_dir in package/feeds/helloworld/luci-app-fchomo package/feeds/small/luci
   PATCHED=1
 done
 
-# Reinstall the feed to make sure changes are picked up
 if [ "$PATCHED" -eq 1 ]; then
   echo "  -> Reinstalling luci-app-fchomo feed..."
   for feed in helloworld small kenzo kenzok8; do
@@ -253,14 +229,3 @@ if [ "$PATCHED" -eq 0 ]; then
   echo "  WARNING: luci-app-fchomo not found in any feed!"
 fi
 echo "=== fchomo postinst fix done ==="
-
-
-# ./scripts/feeds update -a
-# ./scripts/feeds install -p kenzok8 luci-app-transmission
-# ./scripts/feeds install -p kenzok8 transmission
-# ./scripts/feeds install -p kenzok8 transmission-web-control
-# ./scripts/feeds install -p kenzok8 smartdns
-# ./scripts/feeds install -p kenzok8 luci-app-smartdns
-# ./scripts/feeds install -p Joecaicai luci-app-qbittorrent
-# ./scripts/feeds install -p Joecaicai qBittorrent-Enhanced-Edition
-# ./scripts/feeds install -a
