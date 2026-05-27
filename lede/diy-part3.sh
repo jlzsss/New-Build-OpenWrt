@@ -56,12 +56,16 @@ rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
 
 # ============================================================
-# Fix 1: Remove duplicate mihomo packages (keep only one provider)
+# Fix 1: Remove duplicate/conflicting packages (keep only one provider)
 # ============================================================
 echo "=== Removing duplicate mihomo packages ==="
-rm -rf feeds/kenzok8/mihomo feeds/kenzo/mihomo feeds/xuanranran/mihomo feeds/haiibo/mihomo feeds/liuran/mihomo
-rm -rf package/feeds/kenzok8/mihomo package/feeds/kenzo/mihomo package/feeds/xuanranran/mihomo package/feeds/haiibo/mihomo package/feeds/liuran/mihomo
+rm -rf feeds/kenzok8/mihomo feeds/kenzo/mihomo feeds/xuanranran/mihomo feeds/haiibo/mihomo feeds/liuran/mihomo feeds/nikki/mihomo
+rm -rf package/feeds/kenzok8/mihomo package/feeds/kenzo/mihomo package/feeds/xuanranran/mihomo package/feeds/haiibo/mihomo package/feeds/liuran/mihomo package/feeds/nikki/mihomo
 echo "  Done: Keeping feeds/small/mihomo as sole mihomo provider"
+
+echo "=== Removing conflicting clashoo from nikki feed ==="
+rm -rf feeds/nikki/clashoo package/feeds/nikki/clashoo
+echo "  Done: Removed feeds/nikki/clashoo to prevent architecture conflict with feeds/small/clashoo"
 
 # ============================================================
 # Fix 2: Patch nikki Makefile - depend on mihomo instead of providing it
@@ -166,6 +170,16 @@ for cf in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok
           package/feeds/small/clashoo/Makefile package/feeds/kenzo/clashoo/Makefile package/feeds/kenzok8/clashoo/Makefile; do
   patch_clashoo_makefile "$cf"
 done
+
+# ============================================================
+# Fix 4: Re-index patched packages to refresh dependency resolution
+# ============================================================
+echo "=== Re-indexing patched packages ==="
+./scripts/feeds install -f -p small mihomo 2>/dev/null || echo "  (mihomo re-index skipped)"
+./scripts/feeds install -f -p small clashoo 2>/dev/null || echo "  (clashoo re-index skipped)"
+./scripts/feeds install -f -p nikki nikki 2>/dev/null || echo "  (nikki re-index skipped)"
+./scripts/feeds install -f -p nikki luci-app-nikki 2>/dev/null || echo "  (luci-app-nikki re-index skipped)"
+echo "  Done: Package index refreshed"
 
 echo "=== All fixes applied successfully ==="
 
