@@ -223,11 +223,57 @@ for mf in feeds/small/mihomo/Makefile package/feeds/small/mihomo/Makefile \
 done
 
 # ============================================================
+# Fix 3.6: Patch luci-app-clashoo Makefile - fix dependency on clashoo
+# ============================================================
+echo "=== Patching luci-app-clashoo Makefile ==="
+patch_luci_clashoo_makefile() {
+  local makefile="$1"
+  if [ ! -f "$makefile" ]; then
+    return 1
+  fi
+  
+  echo "  Patching: $makefile"
+  
+  # Remove PKGARCH if it forces a specific architecture that conflicts
+  sed -i '/PKGARCH:=/d' "$makefile"
+  
+  # Ensure +clashoo dependency exists
+  if ! grep -q '+clashoo' "$makefile"; then
+    sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +clashoo /' "$makefile"
+  fi
+  
+  echo "  -> Done: $makefile"
+}
+
+for lf in feeds/small/luci-app-clashoo/Makefile feeds/kenzo/luci-app-clashoo/Makefile feeds/kenzok8/luci-app-clashoo/Makefile \
+          package/feeds/small/luci-app-clashoo/Makefile package/feeds/kenzo/luci-app-clashoo/Makefile package/feeds/kenzok8/luci-app-clashoo/Makefile; do
+  patch_luci_clashoo_makefile "$lf"
+done
+
+# ============================================================
+# Fix 3.7: Remove stale mihomo binary from staging to prevent alternatives conflict
+# ============================================================
+echo "=== Cleaning stale mihomo binary from staging ==="
+# The error "/usr/bin/mihomo exists but is not a symlink" means a previous build
+# left a real binary file. Clean it from staging/build dirs to prevent conflict.
+STAGING_DIR="$(pwd)/staging_dir"
+BUILD_DIR="$(pwd)/build_dir"
+if [ -d "$STAGING_DIR" ]; then
+  find "$STAGING_DIR" -name "mihomo" -type f ! -type l -delete 2>/dev/null || true
+  echo "  Cleaned mihomo from staging_dir"
+fi
+if [ -d "$BUILD_DIR" ]; then
+  find "$BUILD_DIR" -path "*/root-x86/usr/bin/mihomo" -type f ! -type l -delete 2>/dev/null || true
+  echo "  Cleaned mihomo from build_dir/root-x86"
+fi
+
+# ============================================================
 # Fix 4: Re-index patched packages to refresh dependency resolution
 # ============================================================
 echo "=== Re-indexing patched packages ==="
 ./scripts/feeds install -f -p small mihomo 2>/dev/null || echo "  (mihomo re-index skipped)"
 ./scripts/feeds install -f -p small clashoo 2>/dev/null || echo "  (clashoo re-index skipped)"
+./scripts/feeds install -f -p small luci-app-clashoo 2>/dev/null || echo "  (luci-app-clashoo re-index skipped)"
 ./scripts/feeds install -f -p nikki nikki 2>/dev/null || echo "  (nikki re-index skipped)"
 ./scripts/feeds install -f -p nikki luci-app-nikki 2>/dev/null || echo "  (luci-app-nikki re-index skipped)"
 echo "  Done: Package index refreshed"
