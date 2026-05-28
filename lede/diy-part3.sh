@@ -65,7 +65,9 @@ echo "  Done: Keeping feeds/small/mihomo as sole mihomo provider"
 
 echo "=== Removing conflicting clashoo from nikki feed ==="
 rm -rf feeds/nikki/clashoo package/feeds/nikki/clashoo
-echo "  Done: Removed feeds/nikki/clashoo to prevent architecture conflict with feeds/small/clashoo"
+rm -rf feeds/nikki/luci-app-clashoo package/feeds/nikki/luci-app-clashoo
+rm -rf feeds/nikki/luci-i18n-clashoo-zh-cn package/feeds/nikki/luci-i18n-clashoo-zh-cn 2>/dev/null
+echo "  Done: Removed feeds/nikki/clashoo and luci-app-clashoo to prevent architecture conflict with feeds/small/clashoo"
 
 # ============================================================
 # Fix 2: Patch nikki Makefile - depend on mihomo instead of providing it
@@ -141,27 +143,52 @@ patch_clashoo_makefile() {
   fi
   
   echo "  Patching: $makefile"
-  
-  # Only remove mihomo from PROVIDES (keep other PROVIDES like clash-meta)
-  sed -i 's/PROVIDES:=.*mihomo[^ ]* *//g; s/PROVIDES:= $//; s/PROVIDES:= */PROVIDES:=/' "$makefile"
-  # Remove empty PROVIDES lines
-  sed -i '/^  PROVIDES:=$/d' "$makefile"
-  
-  # Remove ALTERNATIVES lines that reference mihomo
+
+  # Step 1: Remove old install section (entire block)
+  sed -i '/^define Package\/clashoo\/install$/,/^endef$/d' "$makefile"
+
+  # Step 2: Remove PROVIDES and ALTERNATIVES (mihomo conflict)
+  sed -i '/PROVIDES:=/d' "$makefile"
+  sed -i '/ALTERNATIVES:=/d' "$makefile"
   sed -i '/ALTERNATIVES.*mihomo/d' "$makefile"
-  
-  # Remove Go binary install lines for mihomo only
-  sed -i '/GoPackage.*Install.*Bin.*mihomo/d' "$makefile"
-  sed -i '/INSTALL_BIN.*\/usr\/bin\/mihomo/d' "$makefile"
-  sed -i '/INSTALL_BIN.*\/usr\/libexec.*clashoo.*mihomo/d' "$makefile"
 
-  # Remove symlink to /usr/bin/mihomo from clashoo install section
-  sed -i '/LN.*\/usr\/bin\/mihomo/d' "$makefile"
+  # Step 3: Remove ALL Go compilation related lines (prevents auto-install of mihomo binary)
+  sed -i '/GoBinPackage/d' "$makefile"
+  sed -i '/GoPackage/d' "$makefile"
+  sed -i '/golang-build/d' "$makefile"
+  sed -i '/GO_PKG/d' "$makefile"
+  sed -i '/GO_BUILD/d' "$makefile"
+  sed -i '/GO_MOD/d' "$makefile"
+  sed -i '/GO_INSTALL/d' "$makefile"
+  sed -i '/GO_LDFLAGS/d' "$makefile"
+  sed -i '/GO_TAGS/d' "$makefile"
+  sed -i '/GO_EXTRA/d' "$makefile"
+  sed -i '/GOLANG_PKG/d' "$makefile"
+  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$makefile"
+  sed -i '/include.*golang/d' "$makefile"
 
-  # Add +mihomo to DEPENDS with proper spacing if not already there (handle various indent formats)
+  # Step 4: Remove any remaining INSTALL_BIN/LN lines that reference mihomo
+  sed -i '/INSTALL_BIN.*mihomo/d' "$makefile"
+  sed -i '/LN.*mihomo/d' "$makefile"
+  sed -i '/\/usr\/bin\/mihomo/d' "$makefile"
+  sed -i '/\/usr\/libexec\/clashoo/d' "$makefile"
+
+  # Step 5: Remove empty Build/Compile section if exists
+  sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
+
+  # Step 6: Add +mihomo dependency with proper spacing
   if ! grep -q '+mihomo' "$makefile"; then
     sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
   fi
+
+  # Step 7: Append new clean install section (symlink-only, no binary)
+  cat >> "$makefile" << 'INSTALL_EOF'
+
+define Package/clashoo/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(LN) /usr/bin/mihomo $(1)/usr/bin/clashoo
+endef
+INSTALL_EOF
   
   echo "  -> Done: $makefile"
 }
@@ -169,6 +196,30 @@ patch_clashoo_makefile() {
 for cf in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile \
           package/feeds/small/clashoo/Makefile package/feeds/kenzo/clashoo/Makefile package/feeds/kenzok8/clashoo/Makefile; do
   patch_clashoo_makefile "$cf"
+done
+
+# ============================================================
+# Fix 3.5: Patch mihomo Makefile - remove ALTERNATIVES to prevent symlink conflicts
+# ============================================================
+echo "=== Patching mihomo Makefile ==="
+patch_mihomo_makefile() {
+  local makefile="$1"
+  if [ ! -f "$makefile" ]; then
+    return 1
+  fi
+
+  echo "  Patching: $makefile"
+
+  sed -i '/ALTERNATIVES:=/d' "$makefile"
+  sed -i '/ALTERNATIVES.*mihomo/d' "$makefile"
+
+  echo "  -> Done: $makefile"
+}
+
+for mf in feeds/small/mihomo/Makefile package/feeds/small/mihomo/Makefile \
+          feeds/kenzo/mihomo/Makefile package/feeds/kenzo/mihomo/Makefile \
+          feeds/kenzok8/mihomo/Makefile package/feeds/kenzok8/mihomo/Makefile; do
+  patch_mihomo_makefile "$mf"
 done
 
 # ============================================================
