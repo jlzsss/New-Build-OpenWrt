@@ -110,6 +110,12 @@ patch_nikki_makefile() {
   # Remove empty Build/Compile section if exists
   sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
 
+  # Force PKGARCH:=all (symlink-only package is arch-independent)
+  sed -i 's/^PKGARCH:=.*/PKGARCH:=all/' "$makefile"
+  if ! grep -q 'PKGARCH:=' "$makefile"; then
+    sed -i '/^include.*$/i PKGARCH:=all' "$makefile"
+  fi
+
   # Add +mihomo dependency with proper spacing (handle various indent formats)
   if ! grep -q '+mihomo' "$makefile"; then
     sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
@@ -176,6 +182,12 @@ patch_clashoo_makefile() {
   # Step 5: Remove empty Build/Compile section if exists
   sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
 
+  # Step 5.5: Force PKGARCH:=all (symlink-only package is arch-independent)
+  sed -i 's/^PKGARCH:=.*/PKGARCH:=all/' "$makefile"
+  if ! grep -q 'PKGARCH:=' "$makefile"; then
+    sed -i '/^include.*$/i PKGARCH:=all' "$makefile"
+  fi
+
   # Step 6: Add +mihomo dependency with proper spacing
   if ! grep -q '+mihomo' "$makefile"; then
     sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
@@ -234,8 +246,11 @@ patch_luci_clashoo_makefile() {
   
   echo "  Patching: $makefile"
   
-  # Remove PKGARCH if it forces a specific architecture that conflicts
-  sed -i '/PKGARCH:=/d' "$makefile"
+  # Force PKGARCH:=all (luci app is arch-independent)
+  sed -i 's/^PKGARCH:=.*/PKGARCH:=all/' "$makefile"
+  if ! grep -q 'PKGARCH:=' "$makefile"; then
+    sed -i '/^include.*$/i PKGARCH:=all' "$makefile"
+  fi
   
   # Ensure +clashoo dependency exists
   if ! grep -q '+clashoo' "$makefile"; then
