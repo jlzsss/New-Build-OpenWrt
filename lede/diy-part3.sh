@@ -59,15 +59,23 @@ rm -rf feeds/NueXini/rblibtorrent
 # Fix 1: Remove duplicate/conflicting packages (keep only one provider)
 # ============================================================
 echo "=== Removing duplicate mihomo packages ==="
+# Keep feeds/small/mihomo as sole mihomo provider
 rm -rf feeds/kenzok8/mihomo feeds/kenzo/mihomo feeds/xuanranran/mihomo feeds/haiibo/mihomo feeds/liuran/mihomo feeds/nikki/mihomo
 rm -rf package/feeds/kenzok8/mihomo package/feeds/kenzo/mihomo package/feeds/xuanranran/mihomo package/feeds/haiibo/mihomo package/feeds/liuran/mihomo package/feeds/nikki/mihomo
 echo "  Done: Keeping feeds/small/mihomo as sole mihomo provider"
 
-echo "=== Removing conflicting clashoo from nikki feed ==="
-rm -rf feeds/nikki/clashoo package/feeds/nikki/clashoo
-rm -rf feeds/nikki/luci-app-clashoo package/feeds/nikki/luci-app-clashoo
-rm -rf feeds/nikki/luci-i18n-clashoo-zh-cn package/feeds/nikki/luci-i18n-clashoo-zh-cn 2>/dev/null
-echo "  Done: Removed feeds/nikki/clashoo and luci-app-clashoo to prevent architecture conflict with feeds/small/clashoo"
+echo "=== Removing conflicting clashoo/luci-app-clashoo from non-nikki feeds ==="
+# Keep feeds/nikki/clashoo and feeds/nikki/luci-app-clashoo as sole providers.
+# The nikki feed is the primary developer of clashoo/luci-app-clashoo.
+# The small feed has clashoo but NOT luci-app-clashoo, causing "cannot find dependency".
+# Other feeds may have outdated/incompatible versions.
+rm -rf feeds/small/clashoo feeds/kenzo/clashoo feeds/kenzok8/clashoo
+rm -rf package/feeds/small/clashoo package/feeds/kenzo/clashoo package/feeds/kenzok8/clashoo
+rm -rf feeds/kenzo/luci-app-clashoo feeds/kenzok8/luci-app-clashoo 2>/dev/null
+rm -rf package/feeds/kenzo/luci-app-clashoo package/feeds/kenzok8/luci-app-clashoo 2>/dev/null
+rm -rf feeds/kenzo/luci-i18n-clashoo-zh-cn feeds/kenzok8/luci-i18n-clashoo-zh-cn 2>/dev/null
+rm -rf package/feeds/kenzo/luci-i18n-clashoo-zh-cn package/feeds/kenzok8/luci-i18n-clashoo-zh-cn 2>/dev/null
+echo "  Done: Keeping feeds/nikki/clashoo and feeds/nikki/luci-app-clashoo as sole providers"
 
 # ============================================================
 # Fix 2: Patch nikki Makefile - depend on mihomo instead of providing it
@@ -110,11 +118,13 @@ patch_nikki_makefile() {
   # Remove empty Build/Compile section if exists
   sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
 
-  # Force PKGARCH:=all (symlink-only package is arch-independent)
-  sed -i 's/^PKGARCH:=.*/PKGARCH:=all/' "$makefile"
-  if ! grep -q 'PKGARCH:=' "$makefile"; then
-    sed -i '/^include.*$/i PKGARCH:=all' "$makefile"
-  fi
+  # CRITICAL FIX: PKGARCH:=all must be INSIDE the define Package/nikki block
+  # First remove any existing PKGARCH lines (they may be in wrong position)
+  sed -i '/PKGARCH:=/d' "$makefile"
+  # Insert PKGARCH:=all right after the DEPENDS line within Package definition
+  sed -i '/define Package\/nikki$/,/^endef$/{
+    /^  DEPENDS:=/a\  PKGARCH:=all
+  }' "$makefile"
 
   # Add +mihomo dependency with proper spacing (handle various indent formats)
   if ! grep -q '+mihomo' "$makefile"; then
@@ -136,79 +146,82 @@ INSTALL_EOF
 }
 
 patch_nikki_makefile "feeds/nikki/nikki/Makefile"
-patch_nikki_makefile "package/feeds/nikki/nikki/Makefile"
 
 # ============================================================
-# Fix 3: Patch clashoo Makefile - depend on mihomo instead of providing it
+# Fix 3: Replace clashoo Makefile entirely (sed patches are fragile)
 # ============================================================
-echo "=== Patching clashoo Makefile ==="
-patch_clashoo_makefile() {
-  local makefile="$1"
+echo "=== Replacing clashoo Makefile ==="
+replace_clashoo_makefile() {
+  local pkg_dir="$1"
+  local makefile="${pkg_dir}/Makefile"
+  
   if [ ! -f "$makefile" ]; then
+    echo "  WARNING: $makefile not found, skipping"
     return 1
   fi
   
-  echo "  Patching: $makefile"
+  echo "  Replacing: $makefile"
+  
+  # Extract key metadata from the original Makefile before replacing
+  local PKG_VERSION PKG_RELEASE TITLE SECTION CATEGORY
+  PKG_VERSION=$(sed -n 's/^PKG_VERSION:=//p' "$makefile" | head -1)
+  PKG_RELEASE=$(sed -n 's/^PKG_RELEASE:=//p' "$makefile" | head -1)
+  TITLE=$(sed -n 's/^\([[:space:]]*\)TITLE:=//p' "$makefile" | head -1)
+  SECTION=$(sed -n 's/^\([[:space:]]*\)SECTION:=//p' "$makefile" | head -1)
+  CATEGORY=$(sed -n 's/^\([[:space:]]*\)CATEGORY:=//p' "$makefile" | head -1)
+  
+  # Use defaults if metadata not found
+  [ -z "$PKG_VERSION" ] && PKG_VERSION="1.0"
+  [ -z "$PKG_RELEASE" ] && PKG_RELEASE="1"
+  [ -z "$TITLE" ] && TITLE="Clash Meta (mihomo) wrapper"
+  [ -z "$SECTION" ] && SECTION="net"
+  [ -z "$CATEGORY" ] && CATEGORY="Network"
+  
+  # Write a completely new, clean Makefile for a symlink-only package
+  # This eliminates all fragility from sed-based patching:
+  #   - PKGARCH:=all is properly INSIDE define Package/clashoo block
+  #   - No Go build infrastructure remains
+  #   - No PROVIDES/ALTERNATIVES causing conflicts
+  #   - Simple symlink install: /usr/bin/clashoo -> /usr/bin/mihomo
+  cat > "$makefile" << MAKEFILE_EOF
+include \$(TOPDIR)/rules.mk
 
-  # Step 1: Remove old install section (entire block)
-  sed -i '/^define Package\/clashoo\/install$/,/^endef$/d' "$makefile"
+PKG_NAME:=clashoo
+PKG_VERSION:=${PKG_VERSION}
+PKG_RELEASE:=${PKG_RELEASE}
 
-  # Step 2: Remove PROVIDES and ALTERNATIVES (mihomo conflict)
-  sed -i '/PROVIDES:=/d' "$makefile"
-  sed -i '/ALTERNATIVES:=/d' "$makefile"
-  sed -i '/ALTERNATIVES.*mihomo/d' "$makefile"
+include \$(INCLUDE_DIR)/package.mk
 
-  # Step 3: Remove ALL Go compilation related lines (prevents auto-install of mihomo binary)
-  sed -i '/GoBinPackage/d' "$makefile"
-  sed -i '/GoPackage/d' "$makefile"
-  sed -i '/golang-build/d' "$makefile"
-  sed -i '/GO_PKG/d' "$makefile"
-  sed -i '/GO_BUILD/d' "$makefile"
-  sed -i '/GO_MOD/d' "$makefile"
-  sed -i '/GO_INSTALL/d' "$makefile"
-  sed -i '/GO_LDFLAGS/d' "$makefile"
-  sed -i '/GO_TAGS/d' "$makefile"
-  sed -i '/GO_EXTRA/d' "$makefile"
-  sed -i '/GOLANG_PKG/d' "$makefile"
-  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$makefile"
-  sed -i '/include.*golang/d' "$makefile"
+define Package/clashoo
+  SECTION:=${SECTION}
+  CATEGORY:=${CATEGORY}
+  TITLE:=${TITLE}
+  DEPENDS:=+mihomo
+  PKGARCH:=all
+endef
 
-  # Step 4: Remove any remaining INSTALL_BIN/LN lines that reference mihomo
-  sed -i '/INSTALL_BIN.*mihomo/d' "$makefile"
-  sed -i '/LN.*mihomo/d' "$makefile"
-  sed -i '/\/usr\/bin\/mihomo/d' "$makefile"
-  sed -i '/\/usr\/libexec\/clashoo/d' "$makefile"
-
-  # Step 5: Remove empty Build/Compile section if exists
-  sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
-
-  # Step 5.5: Force PKGARCH:=all (symlink-only package is arch-independent)
-  sed -i 's/^PKGARCH:=.*/PKGARCH:=all/' "$makefile"
-  if ! grep -q 'PKGARCH:=' "$makefile"; then
-    sed -i '/^include.*$/i PKGARCH:=all' "$makefile"
-  fi
-
-  # Step 6: Add +mihomo dependency with proper spacing
-  if ! grep -q '+mihomo' "$makefile"; then
-    sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
-  fi
-
-  # Step 7: Append new clean install section (symlink-only, no binary)
-  cat >> "$makefile" << 'INSTALL_EOF'
+define Package/clashoo/description
+  Clashoo is a wrapper package that provides clashoo as a symlink to mihomo.
+endef
 
 define Package/clashoo/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(LN) /usr/bin/mihomo $(1)/usr/bin/clashoo
+	\$(INSTALL_DIR) \$(1)/usr/bin
+	\$(LN) /usr/bin/mihomo \$(1)/usr/bin/clashoo
 endef
-INSTALL_EOF
+
+define Build/Compile
+endef
+
+\$(eval \$(call BuildPackage,clashoo))
+MAKEFILE_EOF
   
-  echo "  -> Done: $makefile"
+  echo "  -> Done: Replaced $makefile with clean symlink-only package"
 }
 
-for cf in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile \
-          package/feeds/small/clashoo/Makefile package/feeds/kenzo/clashoo/Makefile package/feeds/kenzok8/clashoo/Makefile; do
-  patch_clashoo_makefile "$cf"
-done
+# Only patch the nikki feed's clashoo (sole provider after removing others)
+# package/feeds/nikki/clashoo is a symlink to feeds/nikki/clashoo,
+# so patching the feeds path is sufficient.
+replace_clashoo_makefile "feeds/nikki/clashoo"
 
 # ============================================================
 # Fix 3.5: Patch mihomo Makefile - remove ALTERNATIVES to prevent symlink conflicts
@@ -228,42 +241,51 @@ patch_mihomo_makefile() {
   echo "  -> Done: $makefile"
 }
 
-for mf in feeds/small/mihomo/Makefile package/feeds/small/mihomo/Makefile \
-          feeds/kenzo/mihomo/Makefile package/feeds/kenzo/mihomo/Makefile \
-          feeds/kenzok8/mihomo/Makefile package/feeds/kenzok8/mihomo/Makefile; do
-  patch_mihomo_makefile "$mf"
-done
+# Only patch small feed's mihomo (sole provider after removing others)
+# package/feeds/small/mihomo is a symlink, so feeds path is sufficient.
+patch_mihomo_makefile "feeds/small/mihomo/Makefile"
 
 # ============================================================
-# Fix 3.6: Patch luci-app-clashoo Makefile - fix dependency on clashoo
+# Fix 3.6: Patch luci-app-clashoo Makefile - fix PKGARCH and dependency
 # ============================================================
 echo "=== Patching luci-app-clashoo Makefile ==="
 patch_luci_clashoo_makefile() {
   local makefile="$1"
   if [ ! -f "$makefile" ]; then
+    echo "  WARNING: $makefile not found, skipping"
     return 1
   fi
   
   echo "  Patching: $makefile"
   
-  # Force PKGARCH:=all (luci app is arch-independent)
-  sed -i 's/^PKGARCH:=.*/PKGARCH:=all/' "$makefile"
-  if ! grep -q 'PKGARCH:=' "$makefile"; then
-    sed -i '/^include.*$/i PKGARCH:=all' "$makefile"
+  # CRITICAL FIX: Remove any existing PKGARCH lines first (they may be outside Package block)
+  sed -i '/PKGARCH:=/d' "$makefile"
+  
+  # Insert PKGARCH:=all INSIDE the Package definition block
+  # For LuCI apps using LUCI_TITLE/LUCI_DEPENDS format, PKGARCH goes after LUCI_DEPENDS
+  if grep -q 'LUCI_DEPENDS:=' "$makefile"; then
+    sed -i '/LUCI_DEPENDS:=/a\PKGARCH:=all' "$makefile"
+  elif grep -q 'define Package/luci-app-clashoo' "$makefile"; then
+    # Standard Makefile: insert PKGARCH inside Package definition block after DEPENDS
+    sed -i '/define Package\/luci-app-clashoo$/,/^endef$/{
+      /^  DEPENDS:=/a\  PKGARCH:=all
+    }' "$makefile"
   fi
   
   # Ensure +clashoo dependency exists
   if ! grep -q '+clashoo' "$makefile"; then
-    sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +clashoo /' "$makefile"
+    if grep -q 'LUCI_DEPENDS:=' "$makefile"; then
+      sed -i 's/^\([[:space:]]*LUCI_DEPENDS:=\)/\1 +clashoo /' "$makefile"
+    else
+      sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +clashoo /' "$makefile"
+    fi
   fi
   
   echo "  -> Done: $makefile"
 }
 
-for lf in feeds/small/luci-app-clashoo/Makefile feeds/kenzo/luci-app-clashoo/Makefile feeds/kenzok8/luci-app-clashoo/Makefile \
-          package/feeds/small/luci-app-clashoo/Makefile package/feeds/kenzo/luci-app-clashoo/Makefile package/feeds/kenzok8/luci-app-clashoo/Makefile; do
-  patch_luci_clashoo_makefile "$lf"
-done
+# Only patch nikki feed's luci-app-clashoo (sole provider)
+patch_luci_clashoo_makefile "feeds/nikki/luci-app-clashoo/Makefile"
 
 # ============================================================
 # Fix 3.7: Remove stale mihomo binary from staging to prevent alternatives conflict
@@ -286,15 +308,17 @@ fi
 # Fix 4: Re-index patched packages to refresh dependency resolution
 # ============================================================
 echo "=== Re-indexing patched packages ==="
-./scripts/feeds install -f -p small mihomo 2>/dev/null || echo "  (mihomo re-index skipped)"
-./scripts/feeds install -f -p small clashoo 2>/dev/null || echo "  (clashoo re-index skipped)"
-./scripts/feeds install -f -p small luci-app-clashoo 2>/dev/null || echo "  (luci-app-clashoo re-index skipped)"
-./scripts/feeds install -f -p nikki nikki 2>/dev/null || echo "  (nikki re-index skipped)"
-./scripts/feeds install -f -p nikki luci-app-nikki 2>/dev/null || echo "  (luci-app-nikki re-index skipped)"
+# Re-install from the correct feeds (small for mihomo, nikki for clashoo/luci)
+./scripts/feeds install -f -p small mihomo || echo "  (mihomo re-index warning)"
+./scripts/feeds install -f -p nikki clashoo || echo "  (clashoo re-index warning)"
+./scripts/feeds install -f -p nikki luci-app-clashoo || echo "  (luci-app-clashoo re-index warning)"
+./scripts/feeds install -f -p nikki nikki || echo "  (nikki re-index warning)"
+./scripts/feeds install -f -p nikki luci-app-nikki || echo "  (luci-app-nikki re-index warning)"
+
+# CRITICAL: Re-run defconfig to rebuild the internal package index.
+# Without this, make still uses the stale index from feeds install -a,
+# which has wrong PKGARCH and missing packages.
+make defconfig || echo "  (defconfig warning - non-critical if config unchanged)"
 echo "  Done: Package index refreshed"
 
 echo "=== All fixes applied successfully ==="
-
-
-
-
