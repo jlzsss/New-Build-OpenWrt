@@ -69,12 +69,12 @@ echo "=== Removing conflicting clashoo/luci-app-clashoo from non-small feeds ===
 # The small feed (kenzok8/small) is the only feed that has BOTH clashoo AND luci-app-clashoo.
 # The nikki feed does NOT contain clashoo or luci-app-clashoo.
 # Other feeds may have outdated/incompatible versions.
-rm -rf feeds/kenzo/clashoo feeds/kenzok8/clashoo
-rm -rf package/feeds/kenzo/clashoo package/feeds/kenzok8/clashoo
-rm -rf feeds/kenzo/luci-app-clashoo feeds/kenzok8/luci-app-clashoo 2>/dev/null
-rm -rf package/feeds/kenzo/luci-app-clashoo package/feeds/kenzok8/luci-app-clashoo 2>/dev/null
-rm -rf feeds/kenzo/luci-i18n-clashoo-zh-cn feeds/kenzok8/luci-i18n-clashoo-zh-cn 2>/dev/null
-rm -rf package/feeds/kenzo/luci-i18n-clashoo-zh-cn package/feeds/kenzok8/luci-i18n-clashoo-zh-cn 2>/dev/null
+rm -rf feeds/kenzo/clashoo feeds/kenzok8/clashoo feeds/xuanranran/clashoo feeds/haiibo/clashoo
+rm -rf package/feeds/kenzo/clashoo package/feeds/kenzok8/clashoo package/feeds/xuanranran/clashoo package/feeds/haiibo/clashoo
+rm -rf feeds/kenzo/luci-app-clashoo feeds/kenzok8/luci-app-clashoo feeds/xuanranran/luci-app-clashoo feeds/haiibo/luci-app-clashoo 2>/dev/null
+rm -rf package/feeds/kenzo/luci-app-clashoo package/feeds/kenzok8/luci-app-clashoo package/feeds/xuanranran/luci-app-clashoo package/feeds/haiibo/luci-app-clashoo 2>/dev/null
+rm -rf feeds/kenzo/luci-i18n-clashoo-zh-cn feeds/kenzok8/luci-i18n-clashoo-zh-cn feeds/xuanranran/luci-i18n-clashoo-zh-cn feeds/haiibo/luci-i18n-clashoo-zh-cn 2>/dev/null
+rm -rf package/feeds/kenzo/luci-i18n-clashoo-zh-cn package/feeds/kenzok8/luci-i18n-clashoo-zh-cn package/feeds/xuanranran/luci-i18n-clashoo-zh-cn package/feeds/haiibo/luci-i18n-clashoo-zh-cn 2>/dev/null
 echo "  Done: Keeping feeds/small/clashoo and feeds/small/luci-app-clashoo as sole providers"
 
 # ============================================================
@@ -93,8 +93,10 @@ patch_nikki_makefile() {
   # Remove old install section (entire block)
   sed -i '/^define Package\/nikki\/install$/,/^endef$/d' "$makefile"
   
-  # Remove PROVIDES and ALTERNATIVES (mihomo conflict)
-  sed -i '/PROVIDES:=/d' "$makefile"
+  # Remove PROVIDES containing mihomo (keep other PROVIDES like clash-meta)
+  sed -i '/PROVIDES:=.*mihomo/d' "$makefile"
+  # Remove empty PROVIDES lines left after mihomo extraction
+  sed -i '/^  PROVIDES:=$/d' "$makefile"
   sed -i '/ALTERNATIVES:=/d' "$makefile"
   
   # Remove all Go compilation related lines
@@ -121,9 +123,10 @@ patch_nikki_makefile() {
   # CRITICAL FIX: PKGARCH:=all must be INSIDE the define Package/nikki block
   # First remove any existing PKGARCH lines (they may be in wrong position)
   sed -i '/PKGARCH:=/d' "$makefile"
-  # Insert PKGARCH:=all right after the DEPENDS line within Package definition
+  # Insert PKGARCH:=all before the closing endef of Package/nikki block
+  # This is safer than inserting after DEPENDS, because DEPENDS may not exist
   sed -i '/define Package\/nikki$/,/^endef$/{
-    /^  DEPENDS:=/a\  PKGARCH:=all
+    /^endef$/i\  PKGARCH:=all
   }' "$makefile"
 
   # Add +mihomo dependency with proper spacing (handle various indent formats)
