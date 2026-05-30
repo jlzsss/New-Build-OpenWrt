@@ -64,18 +64,18 @@ rm -rf feeds/kenzok8/mihomo feeds/kenzo/mihomo feeds/xuanranran/mihomo feeds/hai
 rm -rf package/feeds/kenzok8/mihomo package/feeds/kenzo/mihomo package/feeds/xuanranran/mihomo package/feeds/haiibo/mihomo package/feeds/liuran/mihomo package/feeds/nikki/mihomo
 echo "  Done: Keeping feeds/small/mihomo as sole mihomo provider"
 
-echo "=== Removing conflicting clashoo/luci-app-clashoo from non-nikki feeds ==="
-# Keep feeds/nikki/clashoo and feeds/nikki/luci-app-clashoo as sole providers.
-# The nikki feed is the primary developer of clashoo/luci-app-clashoo.
-# The small feed has clashoo but NOT luci-app-clashoo, causing "cannot find dependency".
+echo "=== Removing conflicting clashoo/luci-app-clashoo from non-small feeds ==="
+# Keep feeds/small/clashoo and feeds/small/luci-app-clashoo as sole providers.
+# The small feed (kenzok8/small) is the only feed that has BOTH clashoo AND luci-app-clashoo.
+# The nikki feed does NOT contain clashoo or luci-app-clashoo.
 # Other feeds may have outdated/incompatible versions.
-rm -rf feeds/small/clashoo feeds/kenzo/clashoo feeds/kenzok8/clashoo
-rm -rf package/feeds/small/clashoo package/feeds/kenzo/clashoo package/feeds/kenzok8/clashoo
+rm -rf feeds/kenzo/clashoo feeds/kenzok8/clashoo
+rm -rf package/feeds/kenzo/clashoo package/feeds/kenzok8/clashoo
 rm -rf feeds/kenzo/luci-app-clashoo feeds/kenzok8/luci-app-clashoo 2>/dev/null
 rm -rf package/feeds/kenzo/luci-app-clashoo package/feeds/kenzok8/luci-app-clashoo 2>/dev/null
 rm -rf feeds/kenzo/luci-i18n-clashoo-zh-cn feeds/kenzok8/luci-i18n-clashoo-zh-cn 2>/dev/null
 rm -rf package/feeds/kenzo/luci-i18n-clashoo-zh-cn package/feeds/kenzok8/luci-i18n-clashoo-zh-cn 2>/dev/null
-echo "  Done: Keeping feeds/nikki/clashoo and feeds/nikki/luci-app-clashoo as sole providers"
+echo "  Done: Keeping feeds/small/clashoo and feeds/small/luci-app-clashoo as sole providers"
 
 # ============================================================
 # Fix 2: Patch nikki Makefile - depend on mihomo instead of providing it
@@ -218,10 +218,10 @@ MAKEFILE_EOF
   echo "  -> Done: Replaced $makefile with clean symlink-only package"
 }
 
-# Only patch the nikki feed's clashoo (sole provider after removing others)
-# package/feeds/nikki/clashoo is a symlink to feeds/nikki/clashoo,
+# Only patch the small feed's clashoo (sole provider after removing others)
+# package/feeds/small/clashoo is a symlink to feeds/small/clashoo,
 # so patching the feeds path is sufficient.
-replace_clashoo_makefile "feeds/nikki/clashoo"
+replace_clashoo_makefile "feeds/small/clashoo"
 
 # ============================================================
 # Fix 3.5: Patch mihomo Makefile - remove ALTERNATIVES to prevent symlink conflicts
@@ -284,8 +284,8 @@ patch_luci_clashoo_makefile() {
   echo "  -> Done: $makefile"
 }
 
-# Only patch nikki feed's luci-app-clashoo (sole provider)
-patch_luci_clashoo_makefile "feeds/nikki/luci-app-clashoo/Makefile"
+# Only patch small feed's luci-app-clashoo (sole provider)
+patch_luci_clashoo_makefile "feeds/small/luci-app-clashoo/Makefile"
 
 # ============================================================
 # Fix 3.7: Remove stale mihomo binary from staging to prevent alternatives conflict
@@ -308,10 +308,10 @@ fi
 # Fix 4: Re-index patched packages to refresh dependency resolution
 # ============================================================
 echo "=== Re-indexing patched packages ==="
-# Re-install from the correct feeds (small for mihomo, nikki for clashoo/luci)
+# Re-install from the correct feeds (small for mihomo/clashoo/luci-app-clashoo, nikki for nikki)
 ./scripts/feeds install -f -p small mihomo || echo "  (mihomo re-index warning)"
-./scripts/feeds install -f -p nikki clashoo || echo "  (clashoo re-index warning)"
-./scripts/feeds install -f -p nikki luci-app-clashoo || echo "  (luci-app-clashoo re-index warning)"
+./scripts/feeds install -f -p small clashoo || echo "  (clashoo re-index warning)"
+./scripts/feeds install -f -p small luci-app-clashoo || echo "  (luci-app-clashoo re-index warning)"
 ./scripts/feeds install -f -p nikki nikki || echo "  (nikki re-index warning)"
 ./scripts/feeds install -f -p nikki luci-app-nikki || echo "  (luci-app-nikki re-index warning)"
 
