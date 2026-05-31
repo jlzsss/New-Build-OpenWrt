@@ -326,12 +326,13 @@ echo "=== Patching AdGuardHome chmod (missing files) ==="
 # The chmod targets /usr/share/AdGuardHome/* and /etc/init.d/AdGuardHome,
 # but these files may not exist during image build (only on runtime first-start).
 # Fix: add "2>/dev/null || true" to all chmod lines referencing AdGuardHome paths.
+# NOTE: Use '#' as sed delimiter because replacement text contains '|' (|| true)
 for ag_file in $(find feeds package -type f \( -name 'postinst' -o -name 'Makefile' -o -name '*.defaults' \) 2>/dev/null); do
   if grep -q 'chmod.*AdGuardHome' "$ag_file" 2>/dev/null; then
     echo "  Patching: $ag_file"
-    sed -i 's|chmod \([^ ]*\) /usr/share/AdGuardHome/|chmod \1 /usr/share/AdGuardHome/ 2>/dev/null || true|g' "$ag_file"
-    sed -i 's|chmod \([^ ]*\) /etc/init.d/AdGuardHome|chmod \1 /etc/init.d/AdGuardHome 2>/dev/null || true|g' "$ag_file"
-    sed -i 's|chmod -R \([^ ]*\) /usr/share/AdGuardHome|chmod -R \1 /usr/share/AdGuardHome 2>/dev/null || true|g' "$ag_file"
+    sed -i 's#chmod \([^ ]*\) /usr/share/AdGuardHome/#chmod \1 /usr/share/AdGuardHome/ 2>/dev/null || true#g' "$ag_file"
+    sed -i 's#chmod \([^ ]*\) /etc/init.d/AdGuardHome#chmod \1 /etc/init.d/AdGuardHome 2>/dev/null || true#g' "$ag_file"
+    sed -i 's#chmod -R \([^ ]*\) /usr/share/AdGuardHome#chmod -R \1 /usr/share/AdGuardHome 2>/dev/null || true#g' "$ag_file"
   fi
 done
 echo "  Done: AdGuardHome chmod fix patched"
