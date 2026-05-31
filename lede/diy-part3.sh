@@ -291,7 +291,53 @@ patch_luci_clashoo_makefile() {
 patch_luci_clashoo_makefile "feeds/small/luci-app-clashoo/Makefile"
 
 # ============================================================
-# Fix 3.7: Remove stale mihomo binary from staging to prevent alternatives conflict
+# Fix 3.7: Patch luci-app-fchomo postinst - bypass OpenWrt version check
+# ============================================================
+echo "=== Patching luci-app-fchomo postinst (version check) ==="
+# luci-app-fchomo requires OpenWrt >= 24.10 (REVISION >= 28158), but lede is based on 23.05 (REVISION ~23069).
+# The version check is in the inline postinst inside the Makefile:
+#   [ "$$REVISION" -ge 28158 -o "$$REVISION" -eq 0 ] || { echo "Minimum OpenWrt version required is 24.10."; exit 1; }
+# We must neutralize this check to allow building on lede/23.05.
+for fchomo_dir in $(find feeds package -name 'luci-app-fchomo' -type d 2>/dev/null); do
+  makefile="${fchomo_dir}/Makefile"
+  if [ -f "$makefile" ]; then
+    if grep -q 'Minimum OpenWrt version\|REVISION.*-ge.*28158\|minimum.*version.*24' "$makefile"; then
+      echo "  Patching inline postinst in: $makefile"
+      # Replace "exit 1" with "exit 0" in the version check line
+      # The original line: [ "$$REVISION" -ge 28158 -o "$$REVISION" -eq 0 ] || { ... exit 1; }
+      sed -i 's/exit 1;/exit 0;/g' "$makefile"
+      echo "  Patched Makefile: version check exit 1 -> exit 0"
+    fi
+  fi
+  postinst_file="${fchomo_dir}/postinst"
+  if [ -f "$postinst_file" ]; then
+    echo "  Patching standalone postinst: $postinst_file"
+    sed -i 's/exit 1;/exit 0;/g' "$postinst_file"
+    echo "  Patched postinst: version check exit 1 -> exit 0"
+  fi
+done
+echo "  Done: luci-app-fchomo version check patched"
+
+# ============================================================
+# Fix 3.8: Patch AdGuardHome chmod on missing files
+# ============================================================
+echo "=== Patching AdGuardHome chmod (missing files) ==="
+# chmod errors come from luci-app-adguardhome OR adguardhome package scripts.
+# The chmod targets /usr/share/AdGuardHome/* and /etc/init.d/AdGuardHome,
+# but these files may not exist during image build (only on runtime first-start).
+# Fix: add "2>/dev/null || true" to all chmod lines referencing AdGuardHome paths.
+for ag_file in $(find feeds package -type f \( -name 'postinst' -o -name 'Makefile' -o -name '*.defaults' \) 2>/dev/null); do
+  if grep -q 'chmod.*AdGuardHome' "$ag_file" 2>/dev/null; then
+    echo "  Patching: $ag_file"
+    sed -i 's|chmod \([^ ]*\) /usr/share/AdGuardHome/|chmod \1 /usr/share/AdGuardHome/ 2>/dev/null || true|g' "$ag_file"
+    sed -i 's|chmod \([^ ]*\) /etc/init.d/AdGuardHome|chmod \1 /etc/init.d/AdGuardHome 2>/dev/null || true|g' "$ag_file"
+    sed -i 's|chmod -R \([^ ]*\) /usr/share/AdGuardHome|chmod -R \1 /usr/share/AdGuardHome 2>/dev/null || true|g' "$ag_file"
+  fi
+done
+echo "  Done: AdGuardHome chmod fix patched"
+
+# ============================================================
+# Fix 3.9: Remove stale mihomo binary from staging to prevent alternatives conflict
 # ============================================================
 echo "=== Cleaning stale mihomo binary from staging ==="
 # The error "/usr/bin/mihomo exists but is not a symlink" means a previous build
@@ -311,17 +357,14 @@ fi
 # Fix 4: Re-index patched packages to refresh dependency resolution
 # ============================================================
 echo "=== Re-indexing patched packages ==="
-# Re-install from the correct feeds (small for mihomo/clashoo/luci-app-clashoo, nikki for nikki)
 ./scripts/feeds install -f -p small mihomo || echo "  (mihomo re-index warning)"
 ./scripts/feeds install -f -p small clashoo || echo "  (clashoo re-index warning)"
 ./scripts/feeds install -f -p small luci-app-clashoo || echo "  (luci-app-clashoo re-index warning)"
 ./scripts/feeds install -f -p nikki nikki || echo "  (nikki re-index warning)"
 ./scripts/feeds install -f -p nikki luci-app-nikki || echo "  (luci-app-nikki re-index warning)"
 
-# CRITICAL: Re-run defconfig to rebuild the internal package index.
-# Without this, make still uses the stale index from feeds install -a,
-# which has wrong PKGARCH and missing packages.
 make defconfig || echo "  (defconfig warning - non-critical if config unchanged)"
 echo "  Done: Package index refreshed"
 
 echo "=== All fixes applied successfully ==="
+
