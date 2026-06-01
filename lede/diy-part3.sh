@@ -354,18 +354,5 @@ if [ -d "$BUILD_DIR" ]; then
   echo "  Cleaned mihomo from build_dir/root-x86"
 fi
 
-# ============================================================
-# Fix 4: Re-index patched packages to refresh dependency resolution
-# ============================================================
-echo "=== Re-indexing patched packages ==="
-./scripts/feeds install -f -p small mihomo || echo "  (mihomo re-index warning)"
-./scripts/feeds install -f -p small clashoo || echo "  (clashoo re-index warning)"
-./scripts/feeds install -f -p small luci-app-clashoo || echo "  (luci-app-clashoo re-index warning)"
-./scripts/feeds install -f -p nikki nikki || echo "  (nikki re-index warning)"
-./scripts/feeds install -f -p nikki luci-app-nikki || echo "  (luci-app-nikki re-index warning)"
-
-make defconfig || echo "  (defconfig warning - non-critical if config unchanged)"
-echo "  Done: Package index refreshed"
-
 echo "=== All fixes applied successfully ==="
 
