@@ -55,304 +55,74 @@ rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
 
-# ============================================================
-# Fix 1: Remove duplicate/conflicting packages (keep only one provider)
-# ============================================================
-echo "=== Removing duplicate mihomo packages ==="
-# Keep feeds/small/mihomo as sole mihomo provider
-rm -rf feeds/kenzok8/mihomo feeds/kenzo/mihomo feeds/xuanranran/mihomo feeds/haiibo/mihomo feeds/liuran/mihomo feeds/nikki/mihomo
-rm -rf package/feeds/kenzok8/mihomo package/feeds/kenzo/mihomo package/feeds/xuanranran/mihomo package/feeds/haiibo/mihomo package/feeds/liuran/mihomo package/feeds/nikki/mihomo
-echo "  Done: Keeping feeds/small/mihomo as sole mihomo provider"
-
-echo "=== Removing conflicting clashoo/luci-app-clashoo from non-small feeds ==="
-# Keep feeds/small/clashoo and feeds/small/luci-app-clashoo as sole providers.
-# The small feed (kenzok8/small) is the only feed that has BOTH clashoo AND luci-app-clashoo.
-# The nikki feed does NOT contain clashoo or luci-app-clashoo.
-# Other feeds may have outdated/incompatible versions.
-rm -rf feeds/kenzo/clashoo feeds/kenzok8/clashoo feeds/xuanranran/clashoo feeds/haiibo/clashoo
-rm -rf package/feeds/kenzo/clashoo package/feeds/kenzok8/clashoo package/feeds/xuanranran/clashoo package/feeds/haiibo/clashoo
-rm -rf feeds/kenzo/luci-app-clashoo feeds/kenzok8/luci-app-clashoo feeds/xuanranran/luci-app-clashoo feeds/haiibo/luci-app-clashoo 2>/dev/null
-rm -rf package/feeds/kenzo/luci-app-clashoo package/feeds/kenzok8/luci-app-clashoo package/feeds/xuanranran/luci-app-clashoo package/feeds/haiibo/luci-app-clashoo 2>/dev/null
-rm -rf feeds/kenzo/luci-i18n-clashoo-zh-cn feeds/kenzok8/luci-i18n-clashoo-zh-cn feeds/xuanranran/luci-i18n-clashoo-zh-cn feeds/haiibo/luci-i18n-clashoo-zh-cn 2>/dev/null
-rm -rf package/feeds/kenzo/luci-i18n-clashoo-zh-cn package/feeds/kenzok8/luci-i18n-clashoo-zh-cn package/feeds/xuanranran/luci-i18n-clashoo-zh-cn package/feeds/haiibo/luci-i18n-clashoo-zh-cn 2>/dev/null
-echo "  Done: Keeping feeds/small/clashoo and feeds/small/luci-app-clashoo as sole providers"
+# Keep feeds/nikki/mihomo as the sole mihomo provider for nikki/clashoo
 
 # ============================================================
-# Fix 2: Patch nikki Makefile - depend on mihomo instead of providing it
+# Fix nikki: make it depend on mihomo feed package instead of building its own
 # ============================================================
-echo "=== Patching nikki Makefile ==="
-patch_nikki_makefile() {
-  local makefile="$1"
-  if [ ! -f "$makefile" ]; then
-    echo "  WARNING: $makefile not found!"
-    return 1
-  fi
+
+echo "=== Fixing nikki mihomo conflict ==="
+NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+
+if [ -f "$NIKKI_MAKEFILE" ]; then
+  echo "  Found: $NIKKI_MAKEFILE"
   
-  echo "  Patching: $makefile"
+  # Remove PROVIDES mihomo
+  sed -i '/PROVIDES:=mihomo/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed PROVIDES:=mihomo"
   
-  # Remove old install section (entire block)
-  sed -i '/^define Package\/nikki\/install$/,/^endef$/d' "$makefile"
+  # Remove ALTERNATIVES
+  sed -i '/ALTERNATIVES:=/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed ALTERNATIVES"
   
-  # Remove PROVIDES containing mihomo (keep other PROVIDES like clash-meta)
-  sed -i '/PROVIDES:=.*mihomo/d' "$makefile"
-  # Remove empty PROVIDES lines left after mihomo extraction
-  sed -i '/^  PROVIDES:=$/d' "$makefile"
-  sed -i '/ALTERNATIVES:=/d' "$makefile"
+  # Add +mihomo to DEPENDS
+  sed -i 's/^\(  DEPENDS:=.*\)/\1 +mihomo/' "$NIKKI_MAKEFILE"
+  echo "  -> Added +mihomo to DEPENDS"
   
-  # Remove all Go compilation related lines
-  sed -i '/GoBinPackage/d' "$makefile"
-  sed -i '/GoPackage/d' "$makefile"
-  sed -i '/golang-build/d' "$makefile"
-  sed -i '/GO_PKG/d' "$makefile"
-  sed -i '/GO_BUILD/d' "$makefile"
-  sed -i '/GO_MOD/d' "$makefile"
-  sed -i '/GO_INSTALL/d' "$makefile"
-  sed -i '/GO_LDFLAGS/d' "$makefile"
-  sed -i '/GO_TAGS/d' "$makefile"
-  sed -i '/GO_EXTRA/d' "$makefile"
-  sed -i '/GOLANG_PKG/d' "$makefile"
-  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$makefile"
-  sed -i '/include.*golang/d' "$makefile"
+  # Remove all Go build related lines
+  sed -i '/GO_PKG/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_ARGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL_EXTRA/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_LDFLAGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_TAGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_MOD_CACHE/d' "$NIKKI_MAKEFILE"
+  sed -i '/GoPackage\/Package/d' "$NIKKI_MAKEFILE"
+  sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_PKG/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_DIR/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL_BIN/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed Go build logic"
   
-  # Remove old mihomo binary install lines (but keep symlink in new install section)
-  sed -i '/\/usr\/libexec\/nikki/d' "$makefile"
+  # Add symlink for init scripts
+  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
+  echo "  -> Added symlink /usr/libexec/nikki -> /usr/bin/mihomo"
+else
+  echo "  WARNING: nikki Makefile not found!"
+fi
+echo "=== nikki fix done ==="
 
-  # Remove empty Build/Compile section if exists
-  sed -i '/^define Build\/Compile$/,/^endef$/d' "$makefile"
-
-  # CRITICAL FIX: PKGARCH:=all must be INSIDE the define Package/nikki block
-  # First remove any existing PKGARCH lines (they may be in wrong position)
-  sed -i '/PKGARCH:=/d' "$makefile"
-  # Insert PKGARCH:=all before the closing endef of Package/nikki block
-  # This is safer than inserting after DEPENDS, because DEPENDS may not exist
-  sed -i '/define Package\/nikki$/,/^endef$/{
-    /^endef$/i\  PKGARCH:=all
-  }' "$makefile"
-
-  # Add +mihomo dependency with proper spacing (handle various indent formats)
-  if ! grep -q '+mihomo' "$makefile"; then
-    sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +mihomo /' "$makefile"
-  fi
-  
-  # Append new clean install section at end of file
-  cat >> "$makefile" << 'INSTALL_EOF'
-
-define Package/nikki/install
-	$(INSTALL_DIR) $(1)/usr/libexec/
-	$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/nikki.init $(1)/etc/init.d/nikki
-endef
-INSTALL_EOF
-  
-  echo "  -> Done: $makefile"
-}
-
-patch_nikki_makefile "feeds/nikki/nikki/Makefile"
-
-# ============================================================
-# Fix 3: Replace clashoo Makefile entirely (sed patches are fragile)
-# ============================================================
-echo "=== Replacing clashoo Makefile ==="
-replace_clashoo_makefile() {
-  local pkg_dir="$1"
-  local makefile="${pkg_dir}/Makefile"
-  
-  if [ ! -f "$makefile" ]; then
-    echo "  WARNING: $makefile not found, skipping"
-    return 1
-  fi
-  
-  echo "  Replacing: $makefile"
-  
-  # Extract key metadata from the original Makefile before replacing
-  local PKG_VERSION PKG_RELEASE TITLE SECTION CATEGORY
-  PKG_VERSION=$(sed -n 's/^PKG_VERSION:=//p' "$makefile" | head -1)
-  PKG_RELEASE=$(sed -n 's/^PKG_RELEASE:=//p' "$makefile" | head -1)
-  TITLE=$(sed -n 's/^\([[:space:]]*\)TITLE:=//p' "$makefile" | head -1)
-  SECTION=$(sed -n 's/^\([[:space:]]*\)SECTION:=//p' "$makefile" | head -1)
-  CATEGORY=$(sed -n 's/^\([[:space:]]*\)CATEGORY:=//p' "$makefile" | head -1)
-  
-  # Use defaults if metadata not found
-  [ -z "$PKG_VERSION" ] && PKG_VERSION="1.0"
-  [ -z "$PKG_RELEASE" ] && PKG_RELEASE="1"
-  [ -z "$TITLE" ] && TITLE="Clash Meta (mihomo) wrapper"
-  [ -z "$SECTION" ] && SECTION="net"
-  [ -z "$CATEGORY" ] && CATEGORY="Network"
-  
-  # Write a completely new, clean Makefile for a symlink-only package
-  # This eliminates all fragility from sed-based patching:
-  #   - PKGARCH:=all is properly INSIDE define Package/clashoo block
-  #   - No Go build infrastructure remains
-  #   - No PROVIDES/ALTERNATIVES causing conflicts
-  #   - Simple symlink install: /usr/bin/clashoo -> /usr/bin/mihomo
-  cat > "$makefile" << MAKEFILE_EOF
-include \$(TOPDIR)/rules.mk
-
-PKG_NAME:=clashoo
-PKG_VERSION:=${PKG_VERSION}
-PKG_RELEASE:=${PKG_RELEASE}
-
-include \$(INCLUDE_DIR)/package.mk
-
-define Package/clashoo
-  SECTION:=${SECTION}
-  CATEGORY:=${CATEGORY}
-  TITLE:=${TITLE}
-  DEPENDS:=+mihomo
-  PKGARCH:=all
-endef
-
-define Package/clashoo/description
-  Clashoo is a wrapper package that provides clashoo as a symlink to mihomo.
-endef
-
-define Package/clashoo/install
-	\$(INSTALL_DIR) \$(1)/usr/bin
-	\$(LN) /usr/bin/mihomo \$(1)/usr/bin/clashoo
-endef
-
-define Build/Compile
-endef
-
-\$(eval \$(call BuildPackage,clashoo))
-MAKEFILE_EOF
-  
-  echo "  -> Done: Replaced $makefile with clean symlink-only package"
-}
-
-# Only patch the small feed's clashoo (sole provider after removing others)
-# package/feeds/small/clashoo is a symlink to feeds/small/clashoo,
-# so patching the feeds path is sufficient.
-replace_clashoo_makefile "feeds/small/clashoo"
-
-# ============================================================
-# Fix 3.5: Patch mihomo Makefile - remove ALTERNATIVES to prevent symlink conflicts
-# ============================================================
-echo "=== Patching mihomo Makefile ==="
-patch_mihomo_makefile() {
-  local makefile="$1"
-  if [ ! -f "$makefile" ]; then
-    return 1
-  fi
-
-  echo "  Patching: $makefile"
-
-  sed -i '/ALTERNATIVES:=/d' "$makefile"
-  sed -i '/ALTERNATIVES.*mihomo/d' "$makefile"
-
-  echo "  -> Done: $makefile"
-}
-
-# Only patch small feed's mihomo (sole provider after removing others)
-# package/feeds/small/mihomo is a symlink, so feeds path is sufficient.
-patch_mihomo_makefile "feeds/small/mihomo/Makefile"
-
-# ============================================================
-# Fix 3.6: Patch luci-app-clashoo Makefile - fix PKGARCH and dependency
-# ============================================================
-echo "=== Patching luci-app-clashoo Makefile ==="
-patch_luci_clashoo_makefile() {
-  local makefile="$1"
-  if [ ! -f "$makefile" ]; then
-    echo "  WARNING: $makefile not found, skipping"
-    return 1
-  fi
-  
-  echo "  Patching: $makefile"
-  
-  # CRITICAL FIX: Remove any existing PKGARCH lines first (they may be outside Package block)
-  sed -i '/PKGARCH:=/d' "$makefile"
-  
-  # Insert PKGARCH:=all INSIDE the Package definition block
-  # For LuCI apps using LUCI_TITLE/LUCI_DEPENDS format, PKGARCH goes after LUCI_DEPENDS
-  if grep -q 'LUCI_DEPENDS:=' "$makefile"; then
-    sed -i '/LUCI_DEPENDS:=/a\PKGARCH:=all' "$makefile"
-  elif grep -q 'define Package/luci-app-clashoo' "$makefile"; then
-    # Standard Makefile: insert PKGARCH inside Package definition block after DEPENDS
-    sed -i '/define Package\/luci-app-clashoo$/,/^endef$/{
-      /^  DEPENDS:=/a\  PKGARCH:=all
-    }' "$makefile"
-  fi
-  
-  # Ensure +clashoo dependency exists
-  if ! grep -q '+clashoo' "$makefile"; then
-    if grep -q 'LUCI_DEPENDS:=' "$makefile"; then
-      sed -i 's/^\([[:space:]]*LUCI_DEPENDS:=\)/\1 +clashoo /' "$makefile"
-    else
-      sed -i 's/^\([[:space:]]*DEPENDS:=\)/\1 +clashoo /' "$makefile"
-    fi
-  fi
-  
-  echo "  -> Done: $makefile"
-}
-
-# Only patch small feed's luci-app-clashoo (sole provider)
-patch_luci_clashoo_makefile "feeds/small/luci-app-clashoo/Makefile"
-
-# ============================================================
-# Fix 3.7: Patch luci-app-fchomo postinst - bypass OpenWrt version check
-# ============================================================
-echo "=== Patching luci-app-fchomo postinst (version check) ==="
-# luci-app-fchomo requires OpenWrt >= 24.10 (REVISION >= 28158), but lede is based on 23.05 (REVISION ~23069).
-# The version check is in the inline postinst inside the Makefile:
-#   [ "$$REVISION" -ge 28158 -o "$$REVISION" -eq 0 ] || { echo "Minimum OpenWrt version required is 24.10."; exit 1; }
-# We must neutralize this check to allow building on lede/23.05.
-for fchomo_dir in $(find feeds package -name 'luci-app-fchomo' -type d 2>/dev/null); do
-  makefile="${fchomo_dir}/Makefile"
-  if [ -f "$makefile" ]; then
-    if grep -q 'Minimum OpenWrt version\|REVISION.*-ge.*28158\|minimum.*version.*24' "$makefile"; then
-      echo "  Patching inline postinst in: $makefile"
-      # Replace "exit 1" with "exit 0" in the version check line
-      # The original line: [ "$$REVISION" -ge 28158 -o "$$REVISION" -eq 0 ] || { ... exit 1; }
-      sed -i 's/exit 1;/exit 0;/g' "$makefile"
-      echo "  Patched Makefile: version check exit 1 -> exit 0"
-    fi
-  fi
-  postinst_file="${fchomo_dir}/postinst"
-  if [ -f "$postinst_file" ]; then
-    echo "  Patching standalone postinst: $postinst_file"
-    sed -i 's/exit 1;/exit 0;/g' "$postinst_file"
-    echo "  Patched postinst: version check exit 1 -> exit 0"
+# Fix clashoo: depend on nikki instead of providing its own mihomo binary
+# nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
+echo "=== Fixing clashoo mihomo conflict ==="
+CLASHOO_FOUND=0
+for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
+  if [ -f "$clashoo_makefile" ]; then
+    echo "  Found: $clashoo_makefile"
+    CLASHOO_FOUND=1
+    # Remove mihomo from PROVIDES (keep clash-meta)
+    sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
+    sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
+    echo "  -> Removed mihomo from PROVIDES"
+    # Add +nikki to DEPENDS
+    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +nikki/' "$clashoo_makefile"
+    echo "  -> Added +nikki to DEPENDS"
+    # Remove the Go binary install line (clashoo uses nikki's mihomo)
+    sed -i '\|$(call GoPackage/Package/Install/Bin,|d' "$clashoo_makefile"
+    echo "  -> Removed Go binary install"
   fi
 done
-echo "  Done: luci-app-fchomo version check patched"
-
-# ============================================================
-# Fix 3.8: Patch AdGuardHome chmod on missing files
-# ============================================================
-echo "=== Patching AdGuardHome chmod (missing files) ==="
-# chmod errors come from luci-app-adguardhome OR adguardhome package scripts.
-# The chmod targets /usr/share/AdGuardHome/* and /etc/init.d/AdGuardHome,
-# but these files may not exist during image build (only on runtime first-start).
-# Fix: add "2>/dev/null || true" to all chmod lines referencing AdGuardHome paths.
-# NOTE: Use '#' as sed delimiter because replacement text contains '|' (|| true)
-for ag_file in $(find feeds package -type f \( -name 'postinst' -o -name 'Makefile' -o -name '*.defaults' \) 2>/dev/null); do
-  if grep -q 'chmod.*AdGuardHome' "$ag_file" 2>/dev/null; then
-    echo "  Patching: $ag_file"
-    sed -i 's#chmod \([^ ]*\) /usr/share/AdGuardHome/#chmod \1 /usr/share/AdGuardHome/ 2>/dev/null || true#g' "$ag_file"
-    sed -i 's#chmod \([^ ]*\) /etc/init.d/AdGuardHome#chmod \1 /etc/init.d/AdGuardHome 2>/dev/null || true#g' "$ag_file"
-    sed -i 's#chmod -R \([^ ]*\) /usr/share/AdGuardHome#chmod -R \1 /usr/share/AdGuardHome 2>/dev/null || true#g' "$ag_file"
-  fi
-done
-echo "  Done: AdGuardHome chmod fix patched"
-
-# ============================================================
-# Fix 3.9: Remove stale mihomo binary from staging to prevent alternatives conflict
-# ============================================================
-echo "=== Cleaning stale mihomo binary from staging ==="
-# The error "/usr/bin/mihomo exists but is not a symlink" means a previous build
-# left a real binary file. Clean it from staging/build dirs to prevent conflict.
-STAGING_DIR="$(pwd)/staging_dir"
-BUILD_DIR="$(pwd)/build_dir"
-if [ -d "$STAGING_DIR" ]; then
-  find "$STAGING_DIR" -name "mihomo" -type f ! -type l -delete 2>/dev/null || true
-  echo "  Cleaned mihomo from staging_dir"
+if [ "$CLASHOO_FOUND" -eq 0 ]; then
+  echo "  WARNING: clashoo Makefile not found in any expected location!"
 fi
-if [ -d "$BUILD_DIR" ]; then
-  find "$BUILD_DIR" -path "*/root-x86/usr/bin/mihomo" -type f ! -type l -delete 2>/dev/null || true
-  echo "  Cleaned mihomo from build_dir/root-x86"
-fi
-
-echo "=== All fixes applied successfully ==="
+echo "=== clashoo fix done ==="
 
