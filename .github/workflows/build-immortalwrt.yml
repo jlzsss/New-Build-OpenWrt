@@ -636,11 +636,11 @@ jobs:
             openwrt/OpenWrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.zip
             openwrt/OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.tar.gz
 
-      - name: Delete workflow runs
-        uses: GitRML/delete-workflow-runs@main
-        with:
-          retain_days: 5
-          keep_minimum_runs: 10
+      # - name: Delete workflow runs
+      #   uses: GitRML/delete-workflow-runs@main
+      #   with:
+      #     retain_days: 5
+      #     keep_minimum_runs: 10
 
       - name: Delete old releases
         uses: ophub/delete-releases-workflows@main

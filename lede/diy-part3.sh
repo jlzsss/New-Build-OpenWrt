@@ -72,66 +72,120 @@ rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
 # ============================================================
-# Fix nikki: prevent it from installing /usr/bin/mihomo
-# The nikki Makefile uses GoBinPackage macro which auto-generates
-# install rules for /usr/bin/mihomo, conflicting with the separate
-# mihomo package. We strip all Go build infrastructure so nikki
-# becomes a pure config/script package depending on mihomo binary.
+# Fix nikki: completely overwrite Makefile to prevent /usr/bin/mihomo conflict
+# The upstream nikki uses GoBinPackage which auto-installs the mihomo binary,
+# but the separate mihomo package already provides it. We rewrite the Makefile
+# to make nikki a pure config/script package that depends on mihomo.
 # ============================================================
 
 echo "=== Fixing nikki mihomo conflict ==="
-NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+NIKKI_MK="feeds/nikki/nikki/Makefile"
+NIKKI_MK2="package/feeds/nikki/nikki/Makefile"
 
-if [ -f "$NIKKI_MAKEFILE" ]; then
-  echo "  Found: $NIKKI_MAKEFILE"
+write_nikki_makefile() {
+  local target="$1"
+  local target_dir
+  target_dir="$(dirname "$target")"
+  [ -d "$target_dir" ] || return 1
 
-  # --- Remove Go build infrastructure ---
-  # Remove golang-package.mk include (provides GoBinPackage macro)
-  sed -i '\|golang-package\.mk|d' "$NIKKI_MAKEFILE"
+  cat > "$target" << 'NIKKI_EOF'
+include $(TOPDIR)/rules.mk
 
-  # Remove PKG_BUILD_DEPENDS golang
-  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$NIKKI_MAKEFILE"
+PKG_NAME:=nikki
+PKG_VERSION:=2026.04.08
+PKG_RELEASE:=1
 
-  # Remove all GO_PKG* variables (GO_PKG, GO_PKG_LDFLAGS_X, GO_PKG_TAGS, etc.)
-  sed -i '/^GO_PKG/d' "$NIKKI_MAKEFILE"
+PKG_LICENSE:=GPL3.0+
+PKG_MAINTAINER:=Joseph Mory <morytyann@gmail.com>
 
-  # Remove $(GO_ARCH_DEPENDS) from DEPENDS (with or without space after)
-  sed -i 's/\$(GO_ARCH_DEPENDS) *//g' "$NIKKI_MAKEFILE"
+include $(INCLUDE_DIR)/package.mk
 
-  # Remove PROVIDES/ALTERNATIVES for mihomo (older versions)
-  sed -i '/PROVIDES.*mihomo/d' "$NIKKI_MAKEFILE"
-  sed -i '/ALTERNATIVES/d' "$NIKKI_MAKEFILE"
+define Package/nikki
+  SECTION:=net
+  CATEGORY:=Network
+  TITLE:=Transparent Proxy with Mihomo on OpenWrt.
+  URL:=https://github.com/nikkinikki-org
+  DEPENDS:=+ca-bundle +curl +yq firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy +mihomo
+endef
 
-  # Remove empty Build/Compile override
-  sed -i '/^define Build\/Compile$/,/^endef$/d' "$NIKKI_MAKEFILE"
+define Package/nikki/conffiles
+/etc/config/nikki
+/etc/nikki/mixin.yaml
+endef
 
-  # --- CRITICAL: Replace GoBinPackage with BuildPackage ---
-  # GoBinPackage auto-installs the Go binary to /usr/bin/mihomo
-  # BuildPackage only uses the custom define Package/nikki/install
-  sed -i 's/GoBinPackage/BuildPackage/g' "$NIKKI_MAKEFILE"
+define Package/nikki/install
+	$(INSTALL_DIR) $(1)/etc/nikki
+	$(INSTALL_DIR) $(1)/etc/nikki/ucode
+	$(INSTALL_DIR) $(1)/etc/nikki/scripts
+	$(INSTALL_DIR) $(1)/etc/nikki/nftables
+	$(INSTALL_DIR) $(1)/etc/nikki/profiles
+	$(INSTALL_DIR) $(1)/etc/nikki/subscriptions
+	$(INSTALL_DIR) $(1)/etc/nikki/run
+	$(INSTALL_DIR) $(1)/etc/nikki/run/providers
+	$(INSTALL_DIR) $(1)/etc/nikki/run/providers/rule
+	$(INSTALL_DIR) $(1)/etc/nikki/run/providers/proxy
 
-  # --- Catch any remaining Go-related lines ---
-  sed -i '/GO_BUILD/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_INSTALL/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_LDFLAGS/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_TAGS/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_MOD/d' "$NIKKI_MAKEFILE"
-  sed -i '/GoPackage/d' "$NIKKI_MAKEFILE"
-  sed -i '/golang-build/d' "$NIKKI_MAKEFILE"
+	$(INSTALL_DATA) $(CURDIR)/files/mixin.yaml $(1)/etc/nikki/mixin.yaml
 
-  # --- Ensure +mihomo dependency exists ---
-  sed -i '/DEPENDS:=/{ /+mihomo/!s/\(DEPENDS:=.*\)/\1 +mihomo/ }' "$NIKKI_MAKEFILE"
+	$(INSTALL_BIN) $(CURDIR)/files/ucode/include.uc $(1)/etc/nikki/ucode/include.uc
+	$(INSTALL_BIN) $(CURDIR)/files/ucode/mixin.uc $(1)/etc/nikki/ucode/mixin.uc
+	$(INSTALL_BIN) $(CURDIR)/files/ucode/hijack.ut $(1)/etc/nikki/ucode/hijack.ut
 
-  # --- Force clean rebuild to discard any cached Go build results ---
-  rm -rf build_dir/target-*/nikki-* 2>/dev/null
-  rm -rf package/feeds/nikki/nikki/*.ipk 2>/dev/null
+	$(INSTALL_BIN) $(CURDIR)/files/scripts/include.sh $(1)/etc/nikki/scripts/include.sh
+	$(INSTALL_BIN) $(CURDIR)/files/scripts/firewall_include.sh $(1)/etc/nikki/scripts/firewall_include.sh
+	$(INSTALL_BIN) $(CURDIR)/files/scripts/debug.sh $(1)/etc/nikki/scripts/debug.sh
 
-  echo "  -> nikki fix applied successfully"
-  echo "  --- Debug: modified Makefile key lines ---"
-  grep -n 'GoBin\|BuildPackage\|GO_PKG\|golang\|PROVIDES\|ALTERNATIVES\|mihomo\|GoPackage' "$NIKKI_MAKEFILE" || echo "  (no matching Go/mihomo lines found)"
-else
-  echo "  WARNING: nikki Makefile not found at $NIKKI_MAKEFILE!"
+	$(INSTALL_BIN) $(CURDIR)/files/nftables/geoip_cn.nft $(1)/etc/nikki/nftables/geoip_cn.nft
+	$(INSTALL_BIN) $(CURDIR)/files/nftables/geoip6_cn.nft $(1)/etc/nikki/nftables/geoip6_cn.nft
+
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) $(CURDIR)/files/nikki.conf $(1)/etc/config/nikki
+
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) $(CURDIR)/files/nikki.init $(1)/etc/init.d/nikki
+
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) $(CURDIR)/files/uci-defaults/firewall.sh $(1)/etc/uci-defaults/99_firewall_nikki
+	$(INSTALL_BIN) $(CURDIR)/files/uci-defaults/init.sh $(1)/etc/uci-defaults/99_init_nikki
+	$(INSTALL_BIN) $(CURDIR)/files/uci-defaults/migrate.sh $(1)/etc/uci-defaults/99_migrate_nikki
+
+	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
+	$(INSTALL_DATA) $(CURDIR)/files/nikki.upgrade $(1)/lib/upgrade/keep.d/nikki
+endef
+
+define Package/nikki/postrm
+#!/bin/sh
+if [ -z $${IPKG_INSTROOT} ]; then
+	uci -q batch <<-EOF > /dev/null
+		del firewall.nikki
+		commit firewall
+	EOF
 fi
+endef
+
+$(eval $(call BuildPackage,nikki))
+NIKKI_EOF
+
+  echo "  -> Written: $target"
+}
+
+# Write to feeds source directory
+if write_nikki_makefile "$NIKKI_MK"; then
+  echo "  -> Overwrote feeds nikki Makefile (no GoBinPackage, no Go build)"
+else
+  echo "  WARNING: Cannot write to $NIKKI_MK"
+fi
+
+# Also write to package/feeds if it exists (build system may use either)
+if [ -d "$(dirname "$NIKKI_MK2")" ]; then
+  write_nikki_makefile "$NIKKI_MK2"
+  echo "  -> Also overwrote package/feeds nikki Makefile"
+fi
+
+# Force clean rebuild
+rm -rf build_dir/target-*/nikki-* 2>/dev/null
+rm -rf build_dir/target-*/*.nikki-* 2>/dev/null
+
 echo "=== nikki fix done ==="
 
 # ============================================================
