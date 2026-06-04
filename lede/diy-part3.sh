@@ -72,11 +72,11 @@ rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
 # ============================================================
-# Fix nikki: remove Go build to prevent /usr/bin/mihomo conflict
-# nikki uses GoBinPackage which auto-installs /usr/bin/mihomo,
-# but the separate mihomo package already provides that binary.
-# We remove Go build so nikki becomes a pure config/script package
-# that depends on the mihomo package for the binary.
+# Fix nikki: prevent it from installing /usr/bin/mihomo
+# The nikki Makefile uses GoBinPackage macro which auto-generates
+# install rules for /usr/bin/mihomo, conflicting with the separate
+# mihomo package. We strip all Go build infrastructure so nikki
+# becomes a pure config/script package depending on mihomo binary.
 # ============================================================
 
 echo "=== Fixing nikki mihomo conflict ==="
@@ -84,53 +84,53 @@ NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
 
 if [ -f "$NIKKI_MAKEFILE" ]; then
   echo "  Found: $NIKKI_MAKEFILE"
-  
-  # Remove GoBinPackage call (this auto-installs /usr/bin/mihomo)
-  sed -i '/GoBinPackage/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed GoBinPackage"
-  
-  # Remove golang-package.mk include
-  sed -i '/golang-package\.mk/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed golang-package.mk include"
-  
-  # Remove golang build dependency
-  sed -i '/PKG_BUILD_DEPENDS:=golang/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed PKG_BUILD_DEPENDS golang"
-  
-  # Remove $(GO_ARCH_DEPENDS) from DEPENDS
-  sed -i 's/\$(GO_ARCH_DEPENDS) //' "$NIKKI_MAKEFILE"
-  echo "  -> Removed GO_ARCH_DEPENDS from DEPENDS"
-  
-  # Remove Go package variables (GO_PKG, GO_PKG_LDFLAGS_X, GO_PKG_TAGS, etc.)
-  sed -i '/GO_PKG/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed GO_PKG variables"
-  
-  # Remove PROVIDES mihomo (if present in older versions)
-  sed -i '/PROVIDES:=mihomo/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed PROVIDES:=mihomo"
-  
-  # Remove ALTERNATIVES (if present in older versions)
-  sed -i '/ALTERNATIVES:=/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed ALTERNATIVES"
-  
-  # Ensure +mihomo is in DEPENDS (add only if not already present)
-  sed -i '/DEPENDS:=/{ /+mihomo/!s/^\([[:space:]]*DEPENDS:=.*\)/\1 +mihomo/ }' "$NIKKI_MAKEFILE"
-  echo "  -> Ensured +mihomo in DEPENDS"
-  
-  # Remove old Go build related lines (for compatibility with older Makefile versions)
-  sed -i '/GO_BUILD_ARGS/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_INSTALL_EXTRA/d' "$NIKKI_MAKEFILE"
+
+  # --- Remove Go build infrastructure ---
+  # Remove golang-package.mk include (provides GoBinPackage macro)
+  sed -i '\|golang-package\.mk|d' "$NIKKI_MAKEFILE"
+
+  # Remove PKG_BUILD_DEPENDS golang
+  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$NIKKI_MAKEFILE"
+
+  # Remove all GO_PKG* variables (GO_PKG, GO_PKG_LDFLAGS_X, GO_PKG_TAGS, etc.)
+  sed -i '/^GO_PKG/d' "$NIKKI_MAKEFILE"
+
+  # Remove $(GO_ARCH_DEPENDS) from DEPENDS (with or without space after)
+  sed -i 's/\$(GO_ARCH_DEPENDS) *//g' "$NIKKI_MAKEFILE"
+
+  # Remove PROVIDES/ALTERNATIVES for mihomo (older versions)
+  sed -i '/PROVIDES.*mihomo/d' "$NIKKI_MAKEFILE"
+  sed -i '/ALTERNATIVES/d' "$NIKKI_MAKEFILE"
+
+  # Remove empty Build/Compile override
+  sed -i '/^define Build\/Compile$/,/^endef$/d' "$NIKKI_MAKEFILE"
+
+  # --- CRITICAL: Replace GoBinPackage with BuildPackage ---
+  # GoBinPackage auto-installs the Go binary to /usr/bin/mihomo
+  # BuildPackage only uses the custom define Package/nikki/install
+  sed -i 's/GoBinPackage/BuildPackage/g' "$NIKKI_MAKEFILE"
+
+  # --- Catch any remaining Go-related lines ---
+  sed -i '/GO_BUILD/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_LDFLAGS/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_TAGS/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_MOD_CACHE/d' "$NIKKI_MAKEFILE"
-  sed -i '/GoPackage\/Package/d' "$NIKKI_MAKEFILE"
-  sed -i '/golang-build\.sh/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_BUILD_PKG/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_BUILD_DIR/d' "$NIKKI_MAKEFILE"
-  sed -i '/GO_INSTALL_BIN/d' "$NIKKI_MAKEFILE"
-  echo "  -> Cleaned up legacy Go build lines"
+  sed -i '/GO_MOD/d' "$NIKKI_MAKEFILE"
+  sed -i '/GoPackage/d' "$NIKKI_MAKEFILE"
+  sed -i '/golang-build/d' "$NIKKI_MAKEFILE"
+
+  # --- Ensure +mihomo dependency exists ---
+  sed -i '/DEPENDS:=/{ /+mihomo/!s/\(DEPENDS:=.*\)/\1 +mihomo/ }' "$NIKKI_MAKEFILE"
+
+  # --- Force clean rebuild to discard any cached Go build results ---
+  rm -rf build_dir/target-*/nikki-* 2>/dev/null
+  rm -rf package/feeds/nikki/nikki/*.ipk 2>/dev/null
+
+  echo "  -> nikki fix applied successfully"
+  echo "  --- Debug: modified Makefile key lines ---"
+  grep -n 'GoBin\|BuildPackage\|GO_PKG\|golang\|PROVIDES\|ALTERNATIVES\|mihomo\|GoPackage' "$NIKKI_MAKEFILE" || echo "  (no matching Go/mihomo lines found)"
 else
-  echo "  WARNING: nikki Makefile not found!"
+  echo "  WARNING: nikki Makefile not found at $NIKKI_MAKEFILE!"
 fi
 echo "=== nikki fix done ==="
 
