@@ -94,18 +94,33 @@ if [ -f "$NIKKI_MAKEFILE" ]; then
   sed -i 's/^\(  DEPENDS:=.*\)/\1 +mihomo/' "$NIKKI_MAKEFILE"
   echo "  -> Added +mihomo to DEPENDS"
 
-  # Remove all Go build related lines
+  # Remove Go build dependency on golang
+  sed -i '/PKG_BUILD_DEPENDS.*golang/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed PKG_BUILD_DEPENDS:=golang/host"
+
+  # Remove all Go build related variables
   sed -i '/GO_PKG/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_BUILD_ARGS/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_INSTALL_EXTRA/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_LDFLAGS/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_TAGS/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_MOD_CACHE/d' "$NIKKI_MAKEFILE"
-  sed -i '/GoPackage\/Package/d' "$NIKKI_MAKEFILE"
-  sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_BUILD_PKG/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_BUILD_DIR/d' "$NIKKI_MAKEFILE"
   sed -i '/GO_INSTALL_BIN/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed Go build variables"
+
+  # Remove golang-package.mk include (critical: prevents Go build)
+  sed -i '\|golang-package.mk|d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed golang-package.mk include"
+
+  # Remove GoBinPackage call (critical: was missed before, pattern GoPackage/Package didn't match GoBinPackage)
+  sed -i '/GoBinPackage/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed GoBinPackage call"
+
+  # Remove legacy patterns (for older Makefile versions)
+  sed -i '/GoPackage\/Package/d' "$NIKKI_MAKEFILE"
+  sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
   echo "  -> Removed Go build logic"
 
   # Add symlink for init scripts
