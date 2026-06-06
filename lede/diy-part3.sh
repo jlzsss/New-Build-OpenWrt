@@ -72,126 +72,19 @@ rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
 # ============================================================
-# Fix nikki: completely replace with a pure script package
-# Root cause: upstream nikki uses GoBinPackage which auto-installs
-# /usr/bin/mihomo, conflicting with the separate mihomo package.
-# Simply patching the Makefile is unreliable because the OpenWrt
-# build system caches package metadata. So we completely remove
-# the nikki feed and create a clean package from scratch.
+# Fix nikki: clear build metadata cache
+# The actual Makefile patch is in patches/005-nikki_Makefile.patch
+# which removes GoBinPackage (auto-installs /usr/bin/mihomo) and
+# replaces it with BuildPackage (pure script package).
+# Here we just ensure no stale build cache interferes.
 # ============================================================
 
-echo "=== Fixing nikki mihomo conflict (full replacement) ==="
-
-# Step 1: Remove the nikki PACKAGE (not the whole feed — we need luci-app-nikki)
-rm -rf feeds/nikki/nikki
-rm -rf package/feeds/nikki/nikki
-echo "  -> Removed nikki package (kept luci-app-nikki in feed)"
-
-# Step 2: Clone nikki feed to a temp location to get runtime files
-NIKKI_TMP=$(mktemp -d)
-git clone --depth 1 --filter=blob:none --sparse \
-  https://github.com/nikkinikki-org/OpenWrt-nikki.git "$NIKKI_TMP/repo"
-cd "$NIKKI_TMP/repo"
-git sparse-checkout set nikki/files
-cd - > /dev/null
-echo "  -> Cloned nikki files/ from upstream"
-
-# Step 3: Create a clean nikki package under package/ (no Go build at all)
-NIKKI_PKG="package/nikki"
-mkdir -p "$NIKKI_PKG"
-cp -a "$NIKKI_TMP/repo/nikki/files" "$NIKKI_PKG/files"
-rm -rf "$NIKKI_TMP"
-echo "  -> Created clean package at $NIKKI_PKG"
-
-# Step 4: Write a clean Makefile — pure script package, depends on mihomo
-cat > "$NIKKI_PKG/Makefile" << 'NIKKI_MK_EOF'
-include $(TOPDIR)/rules.mk
-
-PKG_NAME:=nikki
-PKG_VERSION:=2026.04.08
-PKG_RELEASE:=1
-
-PKG_LICENSE:=GPL3.0+
-PKG_MAINTAINER:=Joseph Mory <morytyann@gmail.com>
-
-include $(INCLUDE_DIR)/package.mk
-
-define Package/nikki
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Transparent Proxy with Mihomo on OpenWrt.
-  URL:=https://github.com/nikkinikki-org
-  DEPENDS:=+ca-bundle +curl +yq firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy +mihomo
-endef
-
-define Package/nikki/conffiles
-/etc/config/nikki
-/etc/nikki/mixin.yaml
-endef
-
-define Package/nikki/install
-	$(INSTALL_DIR) $(1)/etc/nikki
-	$(INSTALL_DIR) $(1)/etc/nikki/ucode
-	$(INSTALL_DIR) $(1)/etc/nikki/scripts
-	$(INSTALL_DIR) $(1)/etc/nikki/nftables
-	$(INSTALL_DIR) $(1)/etc/nikki/profiles
-	$(INSTALL_DIR) $(1)/etc/nikki/subscriptions
-	$(INSTALL_DIR) $(1)/etc/nikki/run
-	$(INSTALL_DIR) $(1)/etc/nikki/run/providers
-	$(INSTALL_DIR) $(1)/etc/nikki/run/providers/rule
-	$(INSTALL_DIR) $(1)/etc/nikki/run/providers/proxy
-
-	$(INSTALL_DATA) $(CURDIR)/files/mixin.yaml $(1)/etc/nikki/mixin.yaml
-
-	$(INSTALL_BIN) $(CURDIR)/files/ucode/include.uc $(1)/etc/nikki/ucode/include.uc
-	$(INSTALL_BIN) $(CURDIR)/files/ucode/mixin.uc $(1)/etc/nikki/ucode/mixin.uc
-	$(INSTALL_BIN) $(CURDIR)/files/ucode/hijack.ut $(1)/etc/nikki/ucode/hijack.ut
-
-	$(INSTALL_BIN) $(CURDIR)/files/scripts/include.sh $(1)/etc/nikki/scripts/include.sh
-	$(INSTALL_BIN) $(CURDIR)/files/scripts/firewall_include.sh $(1)/etc/nikki/scripts/firewall_include.sh
-	$(INSTALL_BIN) $(CURDIR)/files/scripts/debug.sh $(1)/etc/nikki/scripts/debug.sh
-
-	$(INSTALL_BIN) $(CURDIR)/files/nftables/geoip_cn.nft $(1)/etc/nikki/nftables/geoip_cn.nft
-	$(INSTALL_BIN) $(CURDIR)/files/nftables/geoip6_cn.nft $(1)/etc/nikki/nftables/geoip6_cn.nft
-
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) $(CURDIR)/files/nikki.conf $(1)/etc/config/nikki
-
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(CURDIR)/files/nikki.init $(1)/etc/init.d/nikki
-
-	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_BIN) $(CURDIR)/files/uci-defaults/firewall.sh $(1)/etc/uci-defaults/99_firewall_nikki
-	$(INSTALL_BIN) $(CURDIR)/files/uci-defaults/init.sh $(1)/etc/uci-defaults/99_init_nikki
-	$(INSTALL_BIN) $(CURDIR)/files/uci-defaults/migrate.sh $(1)/etc/uci-defaults/99_migrate_nikki
-
-	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
-	$(INSTALL_DATA) $(CURDIR)/files/nikki.upgrade $(1)/lib/upgrade/keep.d/nikki
-endef
-
-define Package/nikki/postrm
-#!/bin/sh
-if [ -z $${IPKG_INSTROOT} ]; then
-	uci -q batch <<-EOF > /dev/null
-		del firewall.nikki
-		commit firewall
-	EOF
-fi
-endef
-
-$(eval $(call BuildPackage,nikki))
-NIKKI_MK_EOF
-
-echo "  -> Written clean Makefile (BuildPackage only, no GoBinPackage)"
-
-# Step 5: Clear ALL build metadata and cached packages for nikki
+echo "=== Clearing nikki build cache ==="
 rm -rf build_dir/target-*/nikki-* 2>/dev/null
 rm -rf build_dir/target-*/*.nikki-* 2>/dev/null
 rm -f tmp/info/.packageinfo-nikki* 2>/dev/null
-rm -f package/feeds/nikki/nikki/*.ipk 2>/dev/null
-echo "  -> Cleared build metadata and cache"
-
-echo "=== nikki fix done (full replacement) ==="
+echo "  -> Build metadata cleared (patch will fix Makefile)"
+echo "=== nikki cache clear done ==="
 
 # ============================================================
 # Fix clashoo: depend on mihomo package instead of providing its own binary
