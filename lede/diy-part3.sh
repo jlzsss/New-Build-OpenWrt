@@ -70,13 +70,10 @@ rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
+# Keep feeds/nikki/mihomo as the sole mihomo provider for nikki/clashoo
 
 # ============================================================
-# Fix nikki: convert from Go binary package to pure script package
-# The nikki Makefile uses GoBinPackage which compiles and installs
-# /usr/bin/mihomo, conflicting with the mihomo package.
-# Solution: remove all Go build logic, keep nikki as a script-only
-# package that depends on the mihomo package for the binary.
+# Fix nikki: make it depend on mihomo feed package instead of building its own
 # ============================================================
 
 echo "=== Fixing nikki mihomo conflict ==="
@@ -85,29 +82,35 @@ NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
 if [ -f "$NIKKI_MAKEFILE" ]; then
   echo "  Found: $NIKKI_MAKEFILE"
 
-  # Remove Go build dependencies
-  sed -i '/^PKG_BUILD_DEPENDS:=golang\/host$/d' "$NIKKI_MAKEFILE"
-  sed -i '/^PKG_BUILD_PARALLEL:=/d' "$NIKKI_MAKEFILE"
-  sed -i '/^PKG_BUILD_FLAGS:=/d' "$NIKKI_MAKEFILE"
-  sed -i '/^PKG_BUILD_TIME:=/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed PKG_BUILD_* variables"
+  # Remove PROVIDES mihomo
+  sed -i '/PROVIDES:=mihomo/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed PROVIDES:=mihomo"
 
-  # Remove all GO_PKG* variables
-  sed -i '/^GO_PKG/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed GO_PKG variables"
+  # Remove ALTERNATIVES
+  sed -i '/ALTERNATIVES:=/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed ALTERNATIVES"
 
-  # Remove golang-package.mk include
-  sed -i '\|include.*golang-package\.mk|d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed golang-package.mk include"
+  # Add +mihomo to DEPENDS
+  sed -i 's/^\(  DEPENDS:=.*\)/\1 +mihomo/' "$NIKKI_MAKEFILE"
+  echo "  -> Added +mihomo to DEPENDS"
 
-  # Remove $(GO_ARCH_DEPENDS) from DEPENDS
-  sed -i 's/\$(GO_ARCH_DEPENDS) //' "$NIKKI_MAKEFILE"
-  sed -i 's/\$(GO_ARCH_DEPENDS)//' "$NIKKI_MAKEFILE"
-  echo "  -> Removed GO_ARCH_DEPENDS from DEPENDS"
+  # Remove all Go build related lines
+  sed -i '/GO_PKG/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_ARGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL_EXTRA/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_LDFLAGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_TAGS/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_MOD_CACHE/d' "$NIKKI_MAKEFILE"
+  sed -i '/GoPackage\/Package/d' "$NIKKI_MAKEFILE"
+  sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_PKG/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_BUILD_DIR/d' "$NIKKI_MAKEFILE"
+  sed -i '/GO_INSTALL_BIN/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed Go build logic"
 
-  # Remove GoBinPackage call (this is what installs /usr/bin/mihomo)
-  sed -i '/^\$(eval.*GoBinPackage/d' "$NIKKI_MAKEFILE"
-  echo "  -> Removed GoBinPackage call"
+  # Add symlink for init scripts
+  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
+  echo "  -> Added symlink /usr/libexec/nikki -> /usr/bin/mihomo"
 
   # Clear build cache
   rm -rf build_dir/target-*/nikki-* 2>/dev/null
@@ -119,10 +122,8 @@ else
 fi
 echo "=== nikki fix done ==="
 
-# ============================================================
-# Fix clashoo: depend on mihomo package instead of providing its own binary
-# clashoo should use the mihomo package (not nikki) for the binary
-# ============================================================
+# Fix clashoo: depend on nikki instead of providing its own mihomo binary
+# nikki already PROVIDES mihomo via ALTERNATIVES, clashoo should reuse it
 echo "=== Fixing clashoo mihomo conflict ==="
 CLASHOO_FOUND=0
 for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefile feeds/kenzok8/clashoo/Makefile; do
@@ -133,12 +134,11 @@ for clashoo_makefile in feeds/small/clashoo/Makefile feeds/kenzo/clashoo/Makefil
     sed -i 's/PROVIDES:=mihomo clash-meta/PROVIDES:=clash-meta/' "$clashoo_makefile"
     sed -i 's/PROVIDES:=clash-meta mihomo/PROVIDES:=clash-meta/' "$clashoo_makefile"
     echo "  -> Removed mihomo from PROVIDES"
-    # Add +mihomo to DEPENDS (not +nikki, since nikki doesn't provide mihomo)
-    sed -i '/DEPENDS:=/{ /+mihomo/!s/^\([[:space:]]*DEPENDS:=.*\)/\1 +mihomo/ }' "$clashoo_makefile"
-    echo "  -> Added +mihomo to DEPENDS"
-    # Remove Go binary install lines
-    sed -i '\|GoPackage/Package/Install/Bin|d' "$clashoo_makefile"
-    sed -i '/GoBinPackage/d' "$clashoo_makefile"
+    # Add +nikki to DEPENDS
+    sed -i 's/^\([[:space:]]*DEPENDS:=.*\)/\1 +nikki/' "$clashoo_makefile"
+    echo "  -> Added +nikki to DEPENDS"
+    # Remove the Go binary install line (clashoo uses nikki's mihomo)
+    sed -i '\|$(call GoPackage/Package/Install/Bin,|d' "$clashoo_makefile"
     echo "  -> Removed Go binary install"
   fi
 done
