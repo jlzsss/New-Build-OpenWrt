@@ -72,19 +72,52 @@ rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
 # ============================================================
-# Fix nikki: clear build metadata cache
-# The actual Makefile patch is in patches/005-nikki_Makefile.patch
-# which removes GoBinPackage (auto-installs /usr/bin/mihomo) and
-# replaces it with BuildPackage (pure script package).
-# Here we just ensure no stale build cache interferes.
+# Fix nikki: convert from Go binary package to pure script package
+# The nikki Makefile uses GoBinPackage which compiles and installs
+# /usr/bin/mihomo, conflicting with the mihomo package.
+# Solution: remove all Go build logic, keep nikki as a script-only
+# package that depends on the mihomo package for the binary.
 # ============================================================
 
-echo "=== Clearing nikki build cache ==="
-rm -rf build_dir/target-*/nikki-* 2>/dev/null
-rm -rf build_dir/target-*/*.nikki-* 2>/dev/null
-rm -f tmp/info/.packageinfo-nikki* 2>/dev/null
-echo "  -> Build metadata cleared (patch will fix Makefile)"
-echo "=== nikki cache clear done ==="
+echo "=== Fixing nikki mihomo conflict ==="
+NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+
+if [ -f "$NIKKI_MAKEFILE" ]; then
+  echo "  Found: $NIKKI_MAKEFILE"
+
+  # Remove Go build dependencies
+  sed -i '/^PKG_BUILD_DEPENDS:=golang\/host$/d' "$NIKKI_MAKEFILE"
+  sed -i '/^PKG_BUILD_PARALLEL:=/d' "$NIKKI_MAKEFILE"
+  sed -i '/^PKG_BUILD_FLAGS:=/d' "$NIKKI_MAKEFILE"
+  sed -i '/^PKG_BUILD_TIME:=/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed PKG_BUILD_* variables"
+
+  # Remove all GO_PKG* variables
+  sed -i '/^GO_PKG/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed GO_PKG variables"
+
+  # Remove golang-package.mk include
+  sed -i '\|include.*golang-package\.mk|d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed golang-package.mk include"
+
+  # Remove $(GO_ARCH_DEPENDS) from DEPENDS
+  sed -i 's/\$(GO_ARCH_DEPENDS) //' "$NIKKI_MAKEFILE"
+  sed -i 's/\$(GO_ARCH_DEPENDS)//' "$NIKKI_MAKEFILE"
+  echo "  -> Removed GO_ARCH_DEPENDS from DEPENDS"
+
+  # Remove GoBinPackage call (this is what installs /usr/bin/mihomo)
+  sed -i '/^\$(eval.*GoBinPackage/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed GoBinPackage call"
+
+  # Clear build cache
+  rm -rf build_dir/target-*/nikki-* 2>/dev/null
+  rm -rf build_dir/target-*/*.nikki-* 2>/dev/null
+  rm -f tmp/info/.packageinfo-nikki* 2>/dev/null
+  echo "  -> Build metadata cleared"
+else
+  echo "  WARNING: nikki Makefile not found at $NIKKI_MAKEFILE!"
+fi
+echo "=== nikki fix done ==="
 
 # ============================================================
 # Fix clashoo: depend on mihomo package instead of providing its own binary
