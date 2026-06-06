@@ -72,23 +72,39 @@ rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
 
 # ============================================================
-# Fix nikki: completely overwrite Makefile to prevent /usr/bin/mihomo conflict
-# The upstream nikki uses GoBinPackage which auto-installs the mihomo binary,
-# but the separate mihomo package already provides it. We rewrite the Makefile
-# to make nikki a pure config/script package that depends on mihomo.
+# Fix nikki: completely replace with a pure script package
+# Root cause: upstream nikki uses GoBinPackage which auto-installs
+# /usr/bin/mihomo, conflicting with the separate mihomo package.
+# Simply patching the Makefile is unreliable because the OpenWrt
+# build system caches package metadata. So we completely remove
+# the nikki feed and create a clean package from scratch.
 # ============================================================
 
-echo "=== Fixing nikki mihomo conflict ==="
-NIKKI_MK="feeds/nikki/nikki/Makefile"
-NIKKI_MK2="package/feeds/nikki/nikki/Makefile"
+echo "=== Fixing nikki mihomo conflict (full replacement) ==="
 
-write_nikki_makefile() {
-  local target="$1"
-  local target_dir
-  target_dir="$(dirname "$target")"
-  [ -d "$target_dir" ] || return 1
+# Step 1: Remove the nikki PACKAGE (not the whole feed — we need luci-app-nikki)
+rm -rf feeds/nikki/nikki
+rm -rf package/feeds/nikki/nikki
+echo "  -> Removed nikki package (kept luci-app-nikki in feed)"
 
-  cat > "$target" << 'NIKKI_EOF'
+# Step 2: Clone nikki feed to a temp location to get runtime files
+NIKKI_TMP=$(mktemp -d)
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/nikkinikki-org/OpenWrt-nikki.git "$NIKKI_TMP/repo"
+cd "$NIKKI_TMP/repo"
+git sparse-checkout set nikki/files
+cd - > /dev/null
+echo "  -> Cloned nikki files/ from upstream"
+
+# Step 3: Create a clean nikki package under package/ (no Go build at all)
+NIKKI_PKG="package/nikki"
+mkdir -p "$NIKKI_PKG"
+cp -a "$NIKKI_TMP/repo/nikki/files" "$NIKKI_PKG/files"
+rm -rf "$NIKKI_TMP"
+echo "  -> Created clean package at $NIKKI_PKG"
+
+# Step 4: Write a clean Makefile — pure script package, depends on mihomo
+cat > "$NIKKI_PKG/Makefile" << 'NIKKI_MK_EOF'
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nikki
@@ -164,29 +180,18 @@ fi
 endef
 
 $(eval $(call BuildPackage,nikki))
-NIKKI_EOF
+NIKKI_MK_EOF
 
-  echo "  -> Written: $target"
-}
+echo "  -> Written clean Makefile (BuildPackage only, no GoBinPackage)"
 
-# Write to feeds source directory
-if write_nikki_makefile "$NIKKI_MK"; then
-  echo "  -> Overwrote feeds nikki Makefile (no GoBinPackage, no Go build)"
-else
-  echo "  WARNING: Cannot write to $NIKKI_MK"
-fi
-
-# Also write to package/feeds if it exists (build system may use either)
-if [ -d "$(dirname "$NIKKI_MK2")" ]; then
-  write_nikki_makefile "$NIKKI_MK2"
-  echo "  -> Also overwrote package/feeds nikki Makefile"
-fi
-
-# Force clean rebuild
+# Step 5: Clear ALL build metadata and cached packages for nikki
 rm -rf build_dir/target-*/nikki-* 2>/dev/null
 rm -rf build_dir/target-*/*.nikki-* 2>/dev/null
+rm -f tmp/info/.packageinfo-nikki* 2>/dev/null
+rm -f package/feeds/nikki/nikki/*.ipk 2>/dev/null
+echo "  -> Cleared build metadata and cache"
 
-echo "=== nikki fix done ==="
+echo "=== nikki fix done (full replacement) ==="
 
 # ============================================================
 # Fix clashoo: depend on mihomo package instead of providing its own binary
