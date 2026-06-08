@@ -60,9 +60,6 @@ rm -rf feeds/NueXini/rblibtorrent
 # Keep feeds/packages/net/mihomo as the sole mihomo provider
 # ============================================================
 
-rm -rf feeds/nikki/clashoo
-rm -rf feeds/nikki/mihomo-meta
-rm -rf feeds/nikki/mihomo-alpha
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
 rm -rf feeds/small/mihomo
@@ -70,14 +67,14 @@ rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
-# Keep feeds/nikki/mihomo as the sole mihomo provider for nikki/clashoo
+# All mihomo packages removed; feeds/packages/net/mihomo is the sole provider
 
 # ============================================================
 # Fix nikki: make it depend on mihomo feed package instead of building its own
 # ============================================================
 
 echo "=== Fixing nikki mihomo conflict ==="
-NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+NIKKI_MAKEFILE="feeds/packages/net/nikki/Makefile"
 
 if [ -f "$NIKKI_MAKEFILE" ]; then
   echo "  Found: $NIKKI_MAKEFILE"
@@ -123,8 +120,20 @@ if [ -f "$NIKKI_MAKEFILE" ]; then
   sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
   echo "  -> Removed Go build logic"
 
-  # Add symlink for init scripts
-  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
+  # === CRITICAL FIX: Remove /usr/bin/mihomo installation from install section ===
+  # This is the root cause of the file conflict error
+  # Match various patterns that install mihomo binary to /usr/bin/
+  sed -i '/usr\/bin\/mihomo/d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed /usr/bin/mihomo install lines (ROOT CAUSE FIX)"
+
+  # Also remove generic Go binary install patterns that could still be present
+  sed -i '\|$(INSTALL_BIN).*$(PKG_BUILD_DIR)|d' "$NIKKI_MAKEFILE"
+  sed -i '\|$(INSTALL_BIN).*$(GO_BIN)|d' "$NIKKI_MAKEFILE"
+  sed -i '\|$(CP).*mihomo.*usr/bin|d' "$NIKKI_MAKEFILE"
+  echo "  -> Removed residual binary install commands"
+
+  # Add symlink for init scripts (so init.d scripts can find mihomo via /usr/libexec/nikki)
+  awk '/^define Package\/nikki\/install/{print; print "\t$(INSTALL_DIR) $(1)/usr/libexec"; print "\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki"; next}1' "$NIKKI_MAKEFILE" > "$NIKKI_MAKEFILE.tmp" && mv "$NIKKI_MAKEFILE.tmp" "$NIKKI_MAKEFILE"
   echo "  -> Added symlink /usr/libexec/nikki -> /usr/bin/mihomo"
 
   # Clear build cache
