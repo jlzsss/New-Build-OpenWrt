@@ -35,7 +35,7 @@ rm -rf feeds/luci2/luci-app-turboacc
 ./scripts/feeds install -p packages2 luci-app-quickstart
 ./scripts/feeds install -p luci2 transmission
 ./scripts/feeds install -p luci2 transmission-web-control
-rm -rf feeds/packages/net/{qBittorrent,qBittorrent-static,xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls,haproxy}
+rm -rf feeds/packages/net/{qBittorrent,qBittorrent-static,xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls,haproxy}
 rm -rf package/feeds/lede/php7
 # rm -rf package/feeds/packages/php7
 rm -rf feeds/lede/mt-drivers
@@ -78,7 +78,7 @@ rm -rf feeds/liuran/mihomo
 # ============================================================
 
 echo "=== Fixing nikki mihomo conflict ==="
-NIKKI_MAKEFILE="feeds/nikki/nikki/Makefile"
+NIKKI_MAKEFILE="feeds/packages/net/nikki/Makefile"
 
 if [ -f "$NIKKI_MAKEFILE" ]; then
   echo "  Found: $NIKKI_MAKEFILE"
