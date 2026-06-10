@@ -78,7 +78,7 @@ rm -rf feeds/liuran/mihomo
 # ============================================================
 
 echo "=== Fixing nikki mihomo conflict ==="
-NIKKI_MAKEFILE="feeds/packages/net/nikki/Makefile"
+NIKKI_MAKEFILE="feeds/small/nikki/Makefile"
 
 if [ -f "$NIKKI_MAKEFILE" ]; then
   echo "  Found: $NIKKI_MAKEFILE"
