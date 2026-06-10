@@ -15,40 +15,6 @@
 rm -rf feeds/packages/net/transmission
 rm -rf feeds/packages/net/transmission-web-control
 
-# Fix transmission-daemon missing libcrypto.so.3 / libssl.so.3 (OpenSSL 3.x) dependency
-# Find the actual Makefile location (cloned from jlzsss/openwrt-transmission in diy-part1)
-TRANSMISSION_MK="$(find package/transmission -maxdepth 2 -name 'Makefile' -print -quit 2>/dev/null)"
-if [ -z "$TRANSMISSION_MK" ]; then
-  for p in package/transmission/Makefile package/transmission/transmission/Makefile; do
-    [ -f "$p" ] && TRANSMISSION_MK="$p" && break
-  done
-fi
-
-if [ -n "$TRANSMISSION_MK" ] && [ -f "$TRANSMISSION_MK" ]; then
-  echo "=== Fixing transmission-daemon OpenSSL dependency in $TRANSMISSION_MK ==="
-  if grep -q 'libopenssl' "$TRANSMISSION_MK"; then
-    echo "  -> libopenssl already in DEPENDS, skipping"
-  else
-    if grep -q 'Package/transmission-daemon' "$TRANSMISSION_MK"; then
-      awk '
-        /^define Package\/transmission-daemon/,/^endef/ {
-          if (/DEPENDS:=.*[^\\]/) { sub(/$/, " +libopenssl") }
-          else if (/DEPENDS:=.*\\/) { sub(/$/, " +libopenssl \\") }
-        }
-        { print }
-      ' "$TRANSMISSION_MK" > "${TRANSMISSION_MK}.tmp" && mv "${TRANSMISSION_MK}.tmp" "$TRANSMISSION_MK"
-    else
-      sed -i '/^  DEPENDS:=/s/$/ +libopenssl/' "$TRANSMISSION_MK"
-    fi
-    grep -q 'libopenssl' "$TRANSMISSION_MK" && echo "  -> Successfully added +libopenssl" || {
-      sed -i '/^  DEPENDS:=/s/$/ +libopenssl/' "$TRANSMISSION_MK"
-      grep -q 'libopenssl' "$TRANSMISSION_MK" && echo "  -> Force-add succeeded" || echo "  -> FAILED"
-    }
-  fi
-else
-  echo "!!! WARNING: Transmission Makefile not found, skipping OpenSSL fix"
-fi
-
 rm -rf feeds/small/geoview
 rm -rf feeds/kenzok8/geoview
 rm -rf feeds/packages/lang/golang
