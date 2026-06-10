@@ -63,6 +63,7 @@ rm -rf feeds/xuanranran/other/lean/rblibtorrent
 rm -rf feeds/NueXini/qtbase
 rm -rf feeds/NueXini/qttools
 rm -rf feeds/NueXini/rblibtorrent
+rm -rf feeds/nikki
 rm -rf feeds/kenzok8/mihomo
 rm -rf feeds/kenzok8/luci-app-mihomo
 rm -rf feeds/small/mihomo
@@ -70,7 +71,7 @@ rm -rf feeds/kenzo/mihomo
 rm -rf feeds/xuanranran/mihomo
 rm -rf feeds/haiibo/mihomo
 rm -rf feeds/liuran/mihomo
-# Keep feeds/nikki/mihomo as the sole mihomo provider for nikki/clashoo
+# feeds/nikki completely removed; feeds/packages/net/nikki is the sole nikki provider
 
 # ============================================================
 # Fix nikki: make it depend on mihomo feed package instead of building its own
@@ -123,8 +124,8 @@ if [ -f "$NIKKI_MAKEFILE" ]; then
   sed -i '/golang-build.sh/d' "$NIKKI_MAKEFILE"
   echo "  -> Removed Go build logic"
   
-  # Add symlink for init scripts (so init.d scripts can find mihomo via /usr/libexec/nikki)
-  awk '/^define Package\/nikki\/install/{print; print "\t$(INSTALL_DIR) $(1)/usr/libexec"; print "\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki"; next}1' "$NIKKI_MAKEFILE" > "$NIKKI_MAKEFILE.tmp" && mv "$NIKKI_MAKEFILE.tmp" "$NIKKI_MAKEFILE"
+  # Add symlink for init scripts
+  sed -i '/^define Package\/nikki\/install/a\\t$(INSTALL_DIR) $(1)/usr/libexec\n\t$(LN) /usr/bin/mihomo $(1)/usr/libexec/nikki' "$NIKKI_MAKEFILE"
   echo "  -> Added symlink /usr/libexec/nikki -> /usr/bin/mihomo"
 else
   echo "  WARNING: nikki Makefile not found!"
