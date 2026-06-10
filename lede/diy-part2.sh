@@ -15,19 +15,6 @@
 rm -rf feeds/packages/net/transmission
 rm -rf feeds/packages/net/transmission-web-control
 
-# Fix transmission-daemon missing libopenssl dependency
-for mk in package/transmission/transmission/Makefile package/transmission/Makefile; do
-  if [ -f "$mk" ]; then
-    echo "=== Fixing transmission-daemon OpenSSL dependency in $mk ==="
-    if ! grep -q 'libopenssl' "$mk"; then
-      sed -i '/^define Package\/transmission-daemon$/,/^endef$/{s/^\([[:space:]]*DEPENDS:=.*\)/\1 +libopenssl/}' "$mk"
-      echo "  -> Added +libopenssl to transmission-daemon DEPENDS"
-    else
-      echo "  -> libopenssl already in DEPENDS, skipping"
-    fi
-  fi
-done
-
 rm -rf feeds/small/geoview
 rm -rf feeds/kenzok8/geoview
 rm -rf feeds/packages/lang/golang
