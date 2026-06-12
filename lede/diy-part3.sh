@@ -171,3 +171,68 @@ if [ "$CLASHOO_FOUND" -eq 0 ]; then
 fi
 echo "=== clashoo fix done ==="
 
+# ============================================================
+# Fix luci-app-fchomo postinst version check
+# The postinst script checks for minimum OpenWrt 24.10 version
+# which may fail on lede snapshot builds. Patch it to skip.
+# ============================================================
+echo "=== Fixing luci-app-fchomo postinst version check ==="
+# Find and neutralize the fchomo postinst/uci-defaults scripts that check OpenWrt version
+# The check "Minimum OpenWrt version required is 24.10" causes package/install to fail
+FCHOMO_FOUND=0
+
+# Debug: show what we can find for fchomo
+echo "  Searching for luci-app-fchomo files..."
+find feeds package -path '*/luci-app-fchomo*' -type f 2>/dev/null | head -30 | while read -r f; do echo "    $f"; done
+
+# Method 1: Replace postinst scripts with simple exit 0
+while IFS= read -r -d '' f; do
+  echo "  Replacing fchomo postinst: $f"
+  printf '#!/bin/sh\nexit 0\n' > "$f"
+  chmod +x "$f"
+  FCHOMO_FOUND=1
+done < <(find feeds package -path '*/luci-app-fchomo/postinst' -print0 2>/dev/null)
+
+# Method 2: Patch uci-defaults scripts - surgically remove only the version check block
+# while preserving other initialization logic
+while IFS= read -r -d '' f; do
+  echo "  Patching fchomo uci-defaults: $f"
+  # Remove multi-line if blocks that check version (handles if/then/fi patterns)
+  # Strategy: replace version check with true to make the if-block not trigger
+  sed -i 's/24\.10/0.0/g' "$f" 2>/dev/null  # Makes version comparison always pass
+  sed -i '/Minimum OpenWrt version/d' "$f" 2>/dev/null
+  FCHOMO_FOUND=1
+done < <(find feeds package \( -path '*/luci-app-fchomo/files/etc/uci-defaults/*' -o -path '*/luci-app-fchomo/root/etc/uci-defaults/*' \) -print0 2>/dev/null)
+
+# Method 3: Check if version check is embedded in Makefile postinst define
+while IFS= read -r -d '' f; do
+  if grep -q 'Minimum OpenWrt version' "$f" 2>/dev/null; then
+    echo "  Found version check in Makefile: $f"
+    # Only remove lines with the error message and exit, not version strings in DEPENDS
+    sed -i '/Minimum OpenWrt version required/d' "$f"
+    FCHOMO_FOUND=1
+  fi
+done < <(find feeds package -path '*/luci-app-fchomo/Makefile' -print0 2>/dev/null)
+
+if [ "$FCHOMO_FOUND" -eq 0 ]; then
+  echo "  WARNING: luci-app-fchomo scripts not found at patch time"
+fi
+echo "=== fchomo fix done ==="
+
+# ============================================================
+# Fix luci-app-adguardhome chmod error in postinst
+# The postinst tries to chmod /usr/share/AdGuardHome/* and /etc/init.d/AdGuardHome
+# which don't exist when adguardhome binary package is not installed
+# ============================================================
+echo "=== Fixing luci-app-adguardhome postinst ==="
+# Patch any script in luci-app-adguardhome that does chmod on AdGuardHome paths
+while IFS= read -r -d '' f; do
+  echo "  Patching adguardhome script: $f"
+  # Add 2>/dev/null || true to chmod lines referencing AdGuardHome
+  sed -i '/chmod.*AdGuardHome/s|$| 2>/dev/null || true|' "$f" 2>/dev/null
+  # Also handle lines that don't end with AdGuardHome path
+  sed -i 's|chmod \(.*\)/usr/share/AdGuardHome|chmod \1/usr/share/AdGuardHome 2>/dev/null || true|g' "$f" 2>/dev/null
+  sed -i 's|chmod \(.*\)/etc/init.d/AdGuardHome|chmod \1/etc/init.d/AdGuardHome 2>/dev/null || true|g' "$f" 2>/dev/null
+done < <(find feeds package -path '*/luci-app-adguardhome/*' \( -name 'postinst' -o -path '*/uci-defaults/*' -o -path '*/init.d/*' \) -type f -print0 2>/dev/null)
+echo "=== adguardhome fix done ==="
+
