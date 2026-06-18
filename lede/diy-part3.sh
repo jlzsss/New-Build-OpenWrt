@@ -236,3 +236,17 @@ while IFS= read -r -d '' f; do
 done < <(find feeds package -path '*/luci-app-adguardhome/*' \( -name 'postinst' -o -path '*/uci-defaults/*' -o -path '*/init.d/*' \) -type f -print0 2>/dev/null)
 echo "=== adguardhome fix done ==="
 
+# ============================================================
+# Fix sound.mk: remove reference to snd-hda-codec-realtek-lib.ko
+# Linux kernel 6.12+ merged realtek-lib into snd-hda-codec-realtek
+# ============================================================
+echo "=== Fixing sound.mk realtek-lib.ko reference ==="
+SOUND_MK="package/kernel/linux/modules/sound.mk"
+if [ -f "$SOUND_MK" ]; then
+  sed -i '/snd-hda-codec-realtek-lib\.ko/d' "$SOUND_MK"
+  echo "  -> Removed snd-hda-codec-realtek-lib.ko references from sound.mk"
+else
+  echo "  WARNING: sound.mk not found at $SOUND_MK"
+fi
+echo "=== sound.mk fix done ==="
+
