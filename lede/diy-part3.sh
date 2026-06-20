@@ -220,23 +220,6 @@ fi
 echo "=== fchomo fix done ==="
 
 # ============================================================
-# Fix luci-app-adguardhome chmod error in postinst
-# The postinst tries to chmod /usr/share/AdGuardHome/* and /etc/init.d/AdGuardHome
-# which don't exist when adguardhome binary package is not installed
-# ============================================================
-echo "=== Fixing luci-app-adguardhome postinst ==="
-# Patch any script in luci-app-adguardhome that does chmod on AdGuardHome paths
-while IFS= read -r -d '' f; do
-  echo "  Patching adguardhome script: $f"
-  # Add 2>/dev/null || true to chmod lines referencing AdGuardHome
-  sed -i '/chmod.*AdGuardHome/s|$| 2>/dev/null || true|' "$f" 2>/dev/null
-  # Also handle lines that don't end with AdGuardHome path
-  sed -i 's|chmod \(.*\)/usr/share/AdGuardHome|chmod \1/usr/share/AdGuardHome 2>/dev/null || true|g' "$f" 2>/dev/null
-  sed -i 's|chmod \(.*\)/etc/init.d/AdGuardHome|chmod \1/etc/init.d/AdGuardHome 2>/dev/null || true|g' "$f" 2>/dev/null
-done < <(find feeds package -path '*/luci-app-adguardhome/*' \( -name 'postinst' -o -path '*/uci-defaults/*' -o -path '*/init.d/*' \) -type f -print0 2>/dev/null)
-echo "=== adguardhome fix done ==="
-
-# ============================================================
 # Fix sound.mk: remove reference to snd-hda-codec-realtek-lib.ko
 # Linux kernel 6.12+ merged realtek-lib into snd-hda-codec-realtek
 # ============================================================
@@ -255,4 +238,37 @@ else
   echo "  WARNING: sound.mk not found at $SOUND_MK"
 fi
 echo "=== sound.mk fix done ==="
+
+# ============================================================
+# Fix ffmpeg: add missing libdrm dependency to libffmpeg-full
+# ffmpeg links against libdrm.so.2 but doesn't declare it
+# ============================================================
+echo "=== Fixing ffmpeg libdrm dependency ==="
+FFMPEG_MAKEFILE="feeds/packages/multimedia/ffmpeg/Makefile"
+if [ -f "$FFMPEG_MAKEFILE" ]; then
+  # Find the libffmpeg-full define block and add +libdrm to its DEPENDS
+  # Use awk to only modify DEPENDS within the libffmpeg-full package block
+  awk '
+    /^define Package\/libffmpeg-full/ { in_block=1 }
+    /^endef/ { if(in_block) in_block=0 }
+    in_block && /^[[:space:]]*DEPENDS:=/ && !/\+libdrm/ {
+      print $0 " +libdrm"
+      next
+    }
+    { print }
+  ' "$FFMPEG_MAKEFILE" > "$FFMPEG_MAKEFILE.tmp" && mv "$FFMPEG_MAKEFILE.tmp" "$FFMPEG_MAKEFILE"
+  echo "  -> Added +libdrm to libffmpeg-full DEPENDS"
+  # Also enable libdrm in .config so the package is built and its metadata
+  # is available for the dependency scanner to resolve libdrm.so.2
+  if grep -q '# CONFIG_PACKAGE_libdrm is not set' .config 2>/dev/null; then
+    sed -i 's/# CONFIG_PACKAGE_libdrm is not set/CONFIG_PACKAGE_libdrm=y/' .config
+    echo "  -> Enabled CONFIG_PACKAGE_libdrm=y in .config"
+  elif ! grep -q 'CONFIG_PACKAGE_libdrm=y' .config 2>/dev/null; then
+    echo 'CONFIG_PACKAGE_libdrm=y' >> .config
+    echo "  -> Appended CONFIG_PACKAGE_libdrm=y to .config"
+  fi
+else
+  echo "  WARNING: ffmpeg Makefile not found at $FFMPEG_MAKEFILE"
+fi
+echo "=== ffmpeg libdrm fix done ==="
 
