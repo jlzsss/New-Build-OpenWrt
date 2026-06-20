@@ -272,3 +272,19 @@ else
 fi
 echo "=== ffmpeg libdrm fix done ==="
 
+# ============================================================
+# Fix shortcut-fe: kernel 6.15+ timer API compatibility
+# from_timer() → timer_container_of()
+# del_timer_sync() → timer_shutdown_sync()
+# ============================================================
+echo "=== Fixing shortcut-fe kernel 6.15+ timer API ==="
+SFE_DIR="package/qca/shortcut-fe/shortcut-fe"
+for sfe_file in "$SFE_DIR/sfe_ipv4.c" "$SFE_DIR/sfe_ipv6.c"; do
+  if [ -f "$sfe_file" ]; then
+    sed -i 's/from_timer(/timer_container_of(/g' "$sfe_file"
+    sed -i 's/del_timer_sync(/timer_shutdown_sync(/g' "$sfe_file"
+    echo "  -> Patched timer API in $sfe_file"
+  fi
+done
+echo "=== shortcut-fe timer API fix done ==="
+
