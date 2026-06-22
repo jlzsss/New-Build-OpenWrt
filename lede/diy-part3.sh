@@ -274,17 +274,52 @@ echo "=== ffmpeg libdrm fix done ==="
 
 # ============================================================
 # Fix shortcut-fe: kernel 6.15+ timer API compatibility
-# from_timer() → timer_container_of()
-# del_timer_sync() → timer_shutdown_sync()
+# from_timer() was removed → use container_of()
+# del_timer_sync() was removed → use timer_shutdown_sync()
+# Source files don't exist at diy time; inject via Build/Prepare hook
 # ============================================================
 echo "=== Fixing shortcut-fe kernel 6.15+ timer API ==="
-SFE_DIR="package/qca/shortcut-fe/shortcut-fe"
-for sfe_file in "$SFE_DIR/sfe_ipv4.c" "$SFE_DIR/sfe_ipv6.c"; do
-  if [ -f "$sfe_file" ]; then
-    sed -i 's/from_timer(/timer_container_of(/g' "$sfe_file"
-    sed -i 's/del_timer_sync(/timer_shutdown_sync(/g' "$sfe_file"
-    echo "  -> Patched timer API in $sfe_file"
-  fi
-done
+SFE_PKG="package/qca/shortcut-fe/shortcut-fe"
+if [ -d "$SFE_PKG" ]; then
+  # Create compat header in package dir (will be copied to build_dir by hook)
+  cat > "$SFE_PKG/sfe_compat.h" << 'COMPAT_EOF'
+#ifndef _SFE_COMPAT_H
+#define _SFE_COMPAT_H
+#include <linux/version.h>
+#include <linux/timer.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+#include <linux/container_of.h>
+#define from_timer(var, callback_timer, timer_fieldname) \
+	container_of(callback_timer, typeof(*var), timer_fieldname)
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0) && !defined(del_timer_sync)
+#define del_timer_sync(timer) timer_shutdown_sync(timer)
+#endif
+#endif /* _SFE_COMPAT_H */
+COMPAT_EOF
+  echo "  -> Created sfe_compat.h"
+
+  # Add Build/Prepare hook to package Makefile
+  # This runs AFTER source is copied to build_dir, injecting the fix
+  cat >> "$SFE_PKG/Makefile" << 'MKHOOK_EOF'
+
+# Kernel 6.15+ timer API compatibility hook (auto-injected by diy-part3.sh)
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	cp $(CURDIR)/sfe_compat.h $(PKG_BUILD_DIR)/ 2>/dev/null || true
+	for f in $(PKG_BUILD_DIR)/sfe_ipv4.c $(PKG_BUILD_DIR)/sfe_ipv6.c; do \
+		if [ -f "$$$$f" ]; then \
+			if ! grep -q '_SFE_COMPAT_H' "$$$$f"; then \
+				sed -i '1i#include "sfe_compat.h"' "$$$$f"; \
+			fi; \
+		fi; \
+	done
+	@echo "shortcut-fe: sfe_compat.h injected into build_dir"
+endef
+MKHOOK_EOF
+  echo "  -> Added Build/Prepare hook to package Makefile"
+else
+  echo "  WARNING: shortcut-fe package directory not found at $SFE_PKG"
+fi
 echo "=== shortcut-fe timer API fix done ==="
 
