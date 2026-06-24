@@ -276,11 +276,16 @@ echo "=== ffmpeg libdrm fix done ==="
 # Fix shortcut-fe: kernel 6.15+ timer API compatibility
 # from_timer() was removed → redefine via container_of()
 # del_timer_sync() was removed → redefine as timer_shutdown_sync()
-# Strategy: inject compat #define directly into each .c source file
+# Strategy: create compat header + prepend #include to each .c file
 # ============================================================
 echo "=== Fixing shortcut-fe kernel 6.15+ timer API ==="
 SFE_PKG="package/qca/shortcut-fe/shortcut-fe"
-COMPAT_BLOCK='/*
+SFE_COMPAT="$SFE_PKG/sfe_timer_compat.h"
+
+if [ -d "$SFE_PKG" ]; then
+  # Step 1: Create compat header file
+  cat > "$SFE_COMPAT" << 'HOF'
+/*
  * Kernel 6.15+ timer API compatibility (auto-injected by diy-part3.sh)
  */
 #ifndef _SFE_TIMER_COMPAT_H
@@ -297,33 +302,21 @@ COMPAT_BLOCK='/*
 #define del_timer_sync(t) timer_shutdown_sync(t)
 #endif
 #endif /* _SFE_TIMER_COMPAT_H */
-'
-if [ -d "$SFE_PKG" ]; then
+HOF
+  echo "  -> Created $SFE_COMPAT"
+
+  # Step 2: Prepend #include to every .c source file
   PATCHED=0
-  # Find all .c source files in the shortcut-fe package
   while IFS= read -r -d '' src_file; do
-    # Only inject if not already present
-    if ! grep -q '_SFE_TIMER_COMPAT_H' "$src_file" 2>/dev/null; then
-      # Insert after the last #include line (or at top of file if no includes)
-      if grep -qm1 '^#include' "$src_file" 2>/dev/null; then
-        # Find line number of last #include and insert after it
-        LAST_INC=$(grep -n '^#include' "$src_file" | tail -1 | cut -d: -f1)
-        sed -i "${LAST_INC}a\\
-${COMPAT_BLOCK}" "$src_file"
-      else
-        # No includes found, prepend at top
-        sed -i "1i\\
-${COMPAT_BLOCK}" "$src_file"
-      fi
-      echo "  -> Injected timer compat into $src_file"
+    if ! grep -q 'sfe_timer_compat.h' "$src_file" 2>/dev/null; then
+      sed -i '1i#include "sfe_timer_compat.h"' "$src_file"
+      echo "  -> Patched: $(basename "$src_file")"
       PATCHED=$((PATCHED + 1))
-    else
-      echo "  -> Already patched: $src_file"
     fi
   done < <(find "$SFE_PKG" -name '*.c' -print0 2>/dev/null)
-  echo "  -> Total files patched: $PATCHED"
+  echo "  -> Total .c files patched: $PATCHED"
 else
-  echo "  WARNING: shortcut-fe package directory not found at $SFE_PKG"
+  echo "  WARNING: shortcut-fe package dir not found at $SFE_PKG"
 fi
 echo "=== shortcut-fe timer API fix done ==="
 
