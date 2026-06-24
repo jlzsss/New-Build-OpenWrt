@@ -273,50 +273,79 @@ fi
 echo "=== ffmpeg libdrm fix done ==="
 
 # ============================================================
-# Fix shortcut-fe: kernel 6.15+ timer API compatibility
-# from_timer() was removed → redefine via container_of()
-# del_timer_sync() was removed → redefine as timer_shutdown_sync()
-# Strategy: create compat header + prepend #include to each .c file
+# Fix shortcut-fe: kernel 6.15+ & 6.18+ compatibility
+# 1) from_timer() removed → use container_of() directly
+# 2) del_timer_sync() removed → use timer_shutdown_sync()
+# 3) net->ct.nf_ct_tcp_no_window_check struct member removed in 6.18 →
+#    wrap the access with LINUX_VERSION_CODE check
+# Strategy: sed-replace function calls + wrap struct access + prepend macros
 # ============================================================
-echo "=== Fixing shortcut-fe kernel 6.15+ timer API ==="
+echo "=== Fixing shortcut-fe kernel 6.15+/6.18+ compatibility ==="
 SFE_PKG="package/qca/shortcut-fe/shortcut-fe"
-SFE_COMPAT="$SFE_PKG/sfe_timer_compat.h"
 
 if [ -d "$SFE_PKG" ]; then
-  # Step 1: Create compat header file
-  cat > "$SFE_COMPAT" << 'HOF'
-/*
- * Kernel 6.15+ timer API compatibility (auto-injected by diy-part3.sh)
- */
-#ifndef _SFE_TIMER_COMPAT_H
-#define _SFE_TIMER_COMPAT_H
-#include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
-#include <linux/container_of.h>
-#undef from_timer
-#define from_timer(var, callback_timer, timer_fieldname) \
-	container_of(callback_timer, typeof(*var), timer_fieldname)
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
-#undef del_timer_sync
-#define del_timer_sync(t) timer_shutdown_sync(t)
-#endif
-#endif /* _SFE_TIMER_COMPAT_H */
-HOF
-  echo "  -> Created $SFE_COMPAT"
+  # Step 0: clean any leftover sfe_timer_compat.h include lines
+  # from previous failed attempts.
+  find "$SFE_PKG" -name '*.c' -exec \
+    sed -i '/^#include "sfe_timer_compat\.h"$/d' {} +
 
-  # Step 2: Prepend #include to every .c source file
   PATCHED=0
   while IFS= read -r -d '' src_file; do
-    if ! grep -q 'sfe_timer_compat.h' "$src_file" 2>/dev/null; then
-      sed -i '1i#include "sfe_timer_compat.h"' "$src_file"
+    if ! grep -q '_SFE_TIMER_COMPAT_' "$src_file" 2>/dev/null; then
+      # Fix #1 & #2: rename function calls to compat wrappers
+      sed -i -E \
+        -e 's/\bfrom_timer\(/SFE_FROM_TIMER(/g' \
+        -e 's/\bdel_timer_sync\(/timer_shutdown_sync(/g' \
+        "$src_file"
+      # Prepend the macro definitions + helper for #3
+      TMPF=$(mktemp)
+      cat > "$TMPF" << 'MACROS'
+/* sfe timer/tcp compat: auto-injected by diy-part3.sh */
+#include <linux/version.h>
+#include <linux/container_of.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+#define SFE_FROM_TIMER(var, callback_timer, timer_fieldname) \
+	container_of((callback_timer), typeof(*(var)), timer_fieldname)
+#endif
+/* nf_tcp_net lost tcp_no_window_check member around 6.18 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+#define SFE_TCP_NO_WINDOW_CHECK(tn) (0)
+#else
+#define SFE_TCP_NO_WINDOW_CHECK(tn) ((tn) ? (tn)->tcp_no_window_check : 0)
+#endif
+MACROS
+      cat "$TMPF" "$src_file" > "${src_file}.new" && mv "${src_file}.new" "$src_file"
+      rm -f "$TMPF"
       echo "  -> Patched: $(basename "$src_file")"
       PATCHED=$((PATCHED + 1))
     fi
   done < <(find "$SFE_PKG" -name '*.c' -print0 2>/dev/null)
+
+  # Fix #3: rewrite the tn->tcp_no_window_check access in sfe_cm.c
+  SFE_CM="$SFE_PKG/src/sfe_cm.c"
+  if [ -f "$SFE_CM" ] && grep -q 'tn->tcp_no_window_check' "$SFE_CM"; then
+    sed -i 's/tn->tcp_no_window_check/SFE_TCP_NO_WINDOW_CHECK(tn)/g' "$SFE_CM"
+    echo "  -> Patched sfe_cm.c: tcp_no_window_check access"
+  fi
+
+  # Fix #4: sfe_define_post_routing_hook static functions may be reported
+  # as unused by GCC when the corresponding IPv6 hook isn't registered
+  # (e.g. when SFE_SUPPORT_IPV6 is disabled). Mark them __attribute__((unused)).
+  SFE_BACKPORT="$SFE_PKG/src/sfe_backport.h"
+  if [ -f "$SFE_BACKPORT" ] && \
+     grep -q '^#define sfe_define_post_routing_hook' "$SFE_BACKPORT"; then
+    # Add __attribute__((unused)) right after "static unsigned int" and
+    # before "FN_NAME" in each macro definition (carefully preserving
+    # the line-continuation backslashes).
+    if ! grep -q 'static unsigned int __attribute__' "$SFE_BACKPORT"; then
+      sed -i -E 's/^(static unsigned int) (FN_NAME)/\1 __attribute__((unused)) \2/' \
+        "$SFE_BACKPORT"
+      echo "  -> Patched sfe_backport.h: marked hook fns __attribute__((unused))"
+    fi
+  fi
   echo "  -> Total .c files patched: $PATCHED"
 else
   echo "  WARNING: shortcut-fe package dir not found at $SFE_PKG"
 fi
-echo "=== shortcut-fe timer API fix done ==="
+echo "=== shortcut-fe compat fix done ==="
 
