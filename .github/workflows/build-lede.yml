@@ -163,7 +163,7 @@ jobs:
           make -j$(($(nproc) + 1)) tools/compile CC="$CC" CXX="$CXX"
           make -j$(($(nproc) + 1)) toolchain/compile CC="$CC" CXX="$CXX"
           make -j$(($(nproc) + 1)) target/linux/compile CC="$CC" CXX="$CXX"
-          make -j$(($(nproc) + 1)) package/{shortcut-fe,perl,node,python3,jq,docker}/compile CC="$CC" CXX="$CXX"
+          make -j$(($(nproc) + 1)) package/{perl,node,python3,ruby,jq,docker}/compile CC="$CC" CXX="$CXX"
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -182,7 +182,7 @@ jobs:
           make -j1 tools/compile V=s CC="$CC" CXX="$CXX"
           make -j1 toolchain/compile V=s CC="$CC" CXX="$CXX"
           make -j1 target/linux/compile V=s CC="$CC" CXX="$CXX"
-          make -j1 package/{shortcut-fe,perl,node,python3,jq,docker}/compile V=s CC="$CC" CXX="$CXX"
+          make -j1 package/{perl,node,python3,ruby,jq,docker}/compile V=s CC="$CC" CXX="$CXX"
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -443,44 +443,6 @@ jobs:
             make -j$(($(nproc) + 1)) package/linux/compile CC="$CC" CXX="$CXX"
             ccache -s
           fi
-
-      - name: Fix shortcut-fe timer API for kernel 6.15+
-        run: |
-          cd openwrt
-          echo "Patching shortcut-fe timer API compatibility..."
-          COMPAT_CODE='
-          /* Kernel 6.15+ timer API compat */
-          #ifndef SFE_TIMER_COMPAT
-          #define SFE_TIMER_COMPAT
-          #include <linux/version.h>
-          #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
-          #include <linux/container_of.h>
-          #define from_timer(var, callback_timer, timer_fieldname) container_of(callback_timer, typeof(*var), timer_fieldname)
-          #endif
-          #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
-          #ifndef del_timer_sync
-          #define del_timer_sync(t) timer_shutdown_sync(t)
-          #endif
-          #endif
-          #endif'
-          for bp in package/qca/shortcut-fe/shortcut-fe/src/sfe_backport.h build_dir/target-*/linux-*/shortcut-fe/sfe_backport.h; do
-            if [ -f "$bp" ] && ! grep -q 'SFE_TIMER_COMPAT' "$bp"; then
-              echo "$COMPAT_CODE" >> "$bp"
-              echo "  Patched: $bp"
-            fi
-          done
-          # Fallback: directly prepend compat code to .c files in build_dir
-          for sf in build_dir/target-*/linux-*/shortcut-fe/sfe_ipv4.c build_dir/target-*/linux-*/shortcut-fe/sfe_ipv6.c; do
-            if [ -f "$sf" ] && ! grep -q 'SFE_TIMER_COMPAT' "$sf"; then
-              CLEAN_CODE=$(echo "$COMPAT_CODE" | sed 's/^          //')
-              tmpf=$(mktemp)
-              echo "$CLEAN_CODE" > "$tmpf"
-              cat "$sf" >> "$tmpf"
-              mv "$tmpf" "$sf"
-              echo "  Fallback patched: $sf"
-            fi
-          done
-          echo "shortcut-fe timer API fix applied"
 
       - name: Final compile with CCache
         id: final-compile
