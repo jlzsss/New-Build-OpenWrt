@@ -274,47 +274,56 @@ echo "=== ffmpeg libdrm fix done ==="
 
 # ============================================================
 # Fix shortcut-fe: kernel 6.15+ timer API compatibility
-# from_timer() was removed → use container_of() macro
-# del_timer_sync() was removed → use timer_shutdown_sync()
-# Source files don't exist at diy time; inject via Build/Prepare hook
+# from_timer() was removed → redefine via container_of()
+# del_timer_sync() was removed → redefine as timer_shutdown_sync()
+# Strategy: inject compat #define directly into each .c source file
 # ============================================================
 echo "=== Fixing shortcut-fe kernel 6.15+ timer API ==="
-SFE_MAKEFILE=""
-for candidate in \
-  "package/qca/shortcut-fe/shortcut-fe/Makefile" \
-  "feeds/lede/shortcut-fe/shortcut-fe/Makefile" \
-  "feeds/packages/shortcut-fe/shortcut-fe/Makefile"; do
-  if [ -f "$candidate" ]; then
-    SFE_MAKEFILE="$candidate"
-    break
-  fi
-done
-
-if [ -n "$SFE_MAKEFILE" ]; then
-  echo "  Found SFE Makefile: $SFE_MAKEFILE"
-  # Check if hook already appended to avoid duplicates
-  if ! grep -q 'SFE_TIMER_COMPAT_HOOK' "$SFE_MAKEFILE" 2>/dev/null; then
-    cat >> "$SFE_MAKEFILE" << 'MKHOOK_EOF'
-
-# Kernel 6.15+ timer API compatibility (auto-injected by diy-part3.sh)
-define Build/Prepare/SFE-Timer-Fix
-	@echo "shortcut-fe: patching timer API for kernel $(LINUX_VERSION)"
-	for _sfe_src in $(PKG_BUILD_DIR)/sfe_ipv4.c $(PKG_BUILD_DIR)/sfe_ipv6.c; do \
-		if [ -f "$$_sfe_src" ]; then \
-			sed -i 's/from_timer(/container_of(/g' "$$_sfe_src" && \
-			sed -i 's/del_timer_sync(/timer_shutdown_sync(/g' "$$_sfe_src" && \
-			echo "  patched $$_sfe_src"; \
-		fi; \
-	done
-endef
-Build/Prepare += $(Build/Prepare/SFE-Timer-Fix)
-MKHOOK_EOF
-    echo "  -> Appended Build/Prepare hook for timer API fix"
-  else
-    echo "  -> Hook already present, skipping"
-  fi
+SFE_PKG="package/qca/shortcut-fe/shortcut-fe"
+COMPAT_BLOCK='/*
+ * Kernel 6.15+ timer API compatibility (auto-injected by diy-part3.sh)
+ */
+#ifndef _SFE_TIMER_COMPAT_H
+#define _SFE_TIMER_COMPAT_H
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+#include <linux/container_of.h>
+#undef from_timer
+#define from_timer(var, callback_timer, timer_fieldname) \
+	container_of(callback_timer, typeof(*var), timer_fieldname)
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+#undef del_timer_sync
+#define del_timer_sync(t) timer_shutdown_sync(t)
+#endif
+#endif /* _SFE_TIMER_COMPAT_H */
+'
+if [ -d "$SFE_PKG" ]; then
+  PATCHED=0
+  # Find all .c source files in the shortcut-fe package
+  while IFS= read -r -d '' src_file; do
+    # Only inject if not already present
+    if ! grep -q '_SFE_TIMER_COMPAT_H' "$src_file" 2>/dev/null; then
+      # Insert after the last #include line (or at top of file if no includes)
+      if grep -qm1 '^#include' "$src_file" 2>/dev/null; then
+        # Find line number of last #include and insert after it
+        LAST_INC=$(grep -n '^#include' "$src_file" | tail -1 | cut -d: -f1)
+        sed -i "${LAST_INC}a\\
+${COMPAT_BLOCK}" "$src_file"
+      else
+        # No includes found, prepend at top
+        sed -i "1i\\
+${COMPAT_BLOCK}" "$src_file"
+      fi
+      echo "  -> Injected timer compat into $src_file"
+      PATCHED=$((PATCHED + 1))
+    else
+      echo "  -> Already patched: $src_file"
+    fi
+  done < <(find "$SFE_PKG" -name '*.c' -print0 2>/dev/null)
+  echo "  -> Total files patched: $PATCHED"
 else
-  echo "  WARNING: shortcut-fe Makefile not found!"
+  echo "  WARNING: shortcut-fe package directory not found at $SFE_PKG"
 fi
 echo "=== shortcut-fe timer API fix done ==="
 
