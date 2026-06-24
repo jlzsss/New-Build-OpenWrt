@@ -274,40 +274,47 @@ echo "=== ffmpeg libdrm fix done ==="
 
 # ============================================================
 # Fix shortcut-fe: kernel 6.15+ timer API compatibility
-# from_timer() was removed → use container_of()
+# from_timer() was removed → use container_of() macro
 # del_timer_sync() was removed → use timer_shutdown_sync()
-# Source files live in src/ subdir and are copied to build_dir at compile time
-# Safest fix: append compat defines to existing sfe_backport.h (already included by source)
+# Source files don't exist at diy time; inject via Build/Prepare hook
 # ============================================================
 echo "=== Fixing shortcut-fe kernel 6.15+ timer API ==="
-SFE_BACKPORT="package/qca/shortcut-fe/shortcut-fe/src/sfe_backport.h"
-if [ -f "$SFE_BACKPORT" ]; then
-  # Check if compat code already present
-  if ! grep -q 'SFE_TIMER_COMPAT' "$SFE_BACKPORT"; then
-    cat >> "$SFE_BACKPORT" << 'COMPAT_EOF'
+SFE_MAKEFILE=""
+for candidate in \
+  "package/qca/shortcut-fe/shortcut-fe/Makefile" \
+  "feeds/lede/shortcut-fe/shortcut-fe/Makefile" \
+  "feeds/packages/shortcut-fe/shortcut-fe/Makefile"; do
+  if [ -f "$candidate" ]; then
+    SFE_MAKEFILE="$candidate"
+    break
+  fi
+done
 
-/* Kernel 6.15+ timer API compatibility (auto-injected by diy-part3.sh) */
-#ifndef SFE_TIMER_COMPAT
-#define SFE_TIMER_COMPAT
-#include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
-#include <linux/container_of.h>
-#define from_timer(var, callback_timer, timer_fieldname) \
-	container_of(callback_timer, typeof(*var), timer_fieldname)
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
-#ifndef del_timer_sync
-#define del_timer_sync(t) timer_shutdown_sync(t)
-#endif
-#endif
-#endif /* SFE_TIMER_COMPAT */
-COMPAT_EOF
-    echo "  -> Appended timer compat code to $SFE_BACKPORT"
+if [ -n "$SFE_MAKEFILE" ]; then
+  echo "  Found SFE Makefile: $SFE_MAKEFILE"
+  # Check if hook already appended to avoid duplicates
+  if ! grep -q 'SFE_TIMER_COMPAT_HOOK' "$SFE_MAKEFILE" 2>/dev/null; then
+    cat >> "$SFE_MAKEFILE" << 'MKHOOK_EOF'
+
+# Kernel 6.15+ timer API compatibility (auto-injected by diy-part3.sh)
+define Build/Prepare/SFE-Timer-Fix
+	@echo "shortcut-fe: patching timer API for kernel $(LINUX_VERSION)"
+	for _sfe_src in $(PKG_BUILD_DIR)/sfe_ipv4.c $(PKG_BUILD_DIR)/sfe_ipv6.c; do \
+		if [ -f "$$_sfe_src" ]; then \
+			sed -i 's/from_timer(/container_of(/g' "$$_sfe_src" && \
+			sed -i 's/del_timer_sync(/timer_shutdown_sync(/g' "$$_sfe_src" && \
+			echo "  patched $$_sfe_src"; \
+		fi; \
+	done
+endef
+Build/Prepare += $(Build/Prepare/SFE-Timer-Fix)
+MKHOOK_EOF
+    echo "  -> Appended Build/Prepare hook for timer API fix"
   else
-    echo "  -> Compat code already present in $SFE_BACKPORT"
+    echo "  -> Hook already present, skipping"
   fi
 else
-  echo "  WARNING: sfe_backport.h not found at $SFE_BACKPORT"
+  echo "  WARNING: shortcut-fe Makefile not found!"
 fi
 echo "=== shortcut-fe timer API fix done ==="
 
