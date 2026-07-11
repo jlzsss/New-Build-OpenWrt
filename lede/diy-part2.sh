@@ -24,9 +24,12 @@ git clone --depth 1 https://github.com/sbwml/packages_lang_golang -b 26.x feeds/
 # The Makefile uses $(VIMVER) variable, not literal "vim82"
 sed -i '/\$(CP) \$(PKG_INSTALL_DIR).*vim\$(VIMVER)/d' feeds/packages/utils/vim/Makefile 2>/dev/null || true
 
-# Fix miniupnpd download failure: keep only feeds/packages/net/miniupnpd-nftables
+# Fix miniupnpd download failure: keep only official feeds/packages/net/miniupnpd-nftables and miniupnp
+# Remove all third-party miniupnpd/miniupnp packages to avoid conflicts
 rm -rf feeds/kenzok8/miniupnpd*
+rm -rf feeds/kenzok8/miniupnp*
 rm -rf feeds/small/miniupnpd*
+rm -rf feeds/small/miniupnp*
 git clone --depth 1 --filter=blob:none --sparse https://github.com/immortalwrt/packages.git temp-lede && cd temp-lede && git sparse-checkout set net/uwsgi && cd .. && rm -rf feeds/packages/net/uwsgi && mv temp-lede/net/uwsgi feeds/packages/net && rm -rf temp-lede
 git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/packages.git temp-lede && cd temp-lede && git sparse-checkout set lang/lua/lua5.4 && cd .. && rm -rf feeds/packages/lang/lua/lua5.4 && mv temp-lede/lang/lua/lua5.4 feeds/packages/lang/lua/ && rm -rf temp-lede
 # git clone --depth 1 --filter=blob:none --sparse https://github.com/immortalwrt/packages.git temp-lede && cd temp-lede && git sparse-checkout set libs/libb64 && cd .. && rm -rf feeds/packages/libs/libb64 && mv temp-lede/libs/libb64 feeds/packages/libs && rm -rf temp-lede
