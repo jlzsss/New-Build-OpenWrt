@@ -58,6 +58,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@main
+        with:
+	  fetch-depth: 1
           
       - name: WeChat notification
         run: |
@@ -235,8 +237,10 @@ jobs:
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@main
+        with:
+	  fetch-depth: 1
           
       - name: Initialize environment
         env:
@@ -380,8 +384,10 @@ jobs:
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@main
+        with:
+	  fetch-depth: 1
 
       - name: Initialize environment
         env:
