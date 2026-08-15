@@ -28,22 +28,13 @@ git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/packa
 #   cp: cannot stat '': No such file or directory
 # Root cause: runner has /usr/local/bin/runc so the guard check passes, but
 # other executables are missing → command -v returns empty → cp fails.
-# Fix: use awk to inject a sed command into Build/Compile that replaces the
-# runc path in binary-daemon so copy_binaries becomes a no-op.
-# Also fix docker-proxy install path (29.x builds it to bundles/binary/).
+# Fix: Use sed to insert a fix line before ./hack/make.sh binary in Build/Compile
 DOCKERD_PKG="feeds/packages/utils/dockerd"
 if [ -f "${DOCKERD_PKG}/Makefile" ]; then
-  # 1) Inject sed command into Build/Compile (awk handles this cleanly)
-  #    The injected line runs in the build dir before ./hack/make.sh binary:
-  #      sed -i 's|/usr/local/bin/runc|/nonexistent/runc|g' hack/make/binary-daemon
-  awk '
-    /define Build\/Compile/ { in_compile=1 }
-    in_compile && /\.\/hack\/make\.sh binary/ {
-      print "\tsed -i \x27s|/usr/local/bin/runc|/nonexistent/runc|g\x27 hack/make/binary-daemon 2>/dev/null || true"
-    }
-    { print }
-  ' "${DOCKERD_PKG}/Makefile" > "${DOCKERD_PKG}/Makefile.tmp" && mv "${DOCKERD_PKG}/Makefile.tmp" "${DOCKERD_PKG}/Makefile"
+  # Insert sed command to replace runc path before ./hack/make.sh binary
+  # Using \x27 for single quote in awk output to avoid shell escaping issues
+  sed -i '/^\t.*\.\/hack\/make\.sh binary$/i\\tsed -i "s|/usr/local/bin/runc|/nonexistent/runc|g" hack/make/binary-daemon' "${DOCKERD_PKG}/Makefile"
 
-  # 2) Fix docker-proxy install path: 29.x builds to bundles/binary/ not bundles/binary-daemon/
+  # Fix docker-proxy install path: 29.x builds to bundles/binary/ not bundles/binary-daemon/
   sed -i 's|bundles/binary-daemon/docker-proxy|bundles/binary/docker-proxy|g' "${DOCKERD_PKG}/Makefile" 2>/dev/null || true
 fi
