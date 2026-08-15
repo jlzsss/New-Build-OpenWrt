@@ -39,7 +39,7 @@ if [ -f "${DOCKERD_PKG}/Makefile" ]; then
   awk '
     /define Build\/Compile/ { in_compile=1 }
     in_compile && /\.\/hack\/make\.sh binary/ {
-      print "\tsed -i '\''s|/usr/local/bin/runc|/nonexistent/runc|g'\'' hack/make/binary-daemon 2>/dev/null || true"
+      print "\tsed -i \x27s|/usr/local/bin/runc|/nonexistent/runc|g\x27 hack/make/binary-daemon 2>/dev/null || true"
     }
     { print }
   ' "${DOCKERD_PKG}/Makefile" > "${DOCKERD_PKG}/Makefile.tmp" && mv "${DOCKERD_PKG}/Makefile.tmp" "${DOCKERD_PKG}/Makefile"
