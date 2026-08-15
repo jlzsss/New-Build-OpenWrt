@@ -39,25 +39,24 @@ git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/packa
 #   cp: cannot stat '': No such file or directory
 # Root cause: runner has /usr/local/bin/runc so the guard check passes, but
 # other executables are missing → command -v returns empty → cp fails.
-# Fix: patch the source to skip files not found in PATH.
-DOCKERD_MK="feeds/packages/utils/dockerd/Makefile"
-if [ -f "${DOCKERD_MK}" ]; then
-  # Create OpenWrt package patch directory (patches applied after source extraction)
-  mkdir -p feeds/packages/utils/dockerd/patches
-  cat > feeds/packages/utils/dockerd/patches/001-fix-copy-binaries.patch << 'PATCH_EOF'
---- a/hack/make/binary-daemon
-+++ b/hack/make/binary-daemon
-@@ -16,7 +16,8 @@
- 	for file in containerd containerd-shim-runc-v2 ctr runc docker-init rootlesskit dockerd-rootless.sh dockerd-rootless-setuptool.sh; do
--		cp -f "$(command -v "$file")" "$dir/"
-+		_cmd="$(command -v "$file" 2>/dev/null)"
-+		[ -n "${_cmd}" ] && cp -f "${_cmd}" "$dir/" || true
- 	done
- 	# vpnkit might not be available for the target platform, see vpnkit stage in
- 	# the Dockerfile for more information.
-PATCH_EOF
-  # Fix docker-proxy install path: 29.x builds it to bundles/binary/ not bundles/binary-daemon/
-  sed -i 's|bundles/binary-daemon/docker-proxy|bundles/binary/docker-proxy|g' "${DOCKERD_MK}" 2>/dev/null || true
+# Fix: use awk to inject a sed command into Build/Compile that replaces the
+# runc path in binary-daemon so copy_binaries becomes a no-op.
+# Also fix docker-proxy install path (29.x builds it to bundles/binary/).
+DOCKERD_PKG="feeds/packages/utils/dockerd"
+if [ -f "${DOCKERD_PKG}/Makefile" ]; then
+  # 1) Inject sed command into Build/Compile (awk handles this cleanly)
+  #    The injected line runs in the build dir before ./hack/make.sh binary:
+  #      sed -i 's|/usr/local/bin/runc|/nonexistent/runc|g' hack/make/binary-daemon
+  awk '
+    /define Build\/Compile/ { in_compile=1 }
+    in_compile && /\.\/hack\/make\.sh binary/ {
+      print "\tsed -i '\''s|/usr/local/bin/runc|/nonexistent/runc|g'\'' hack/make/binary-daemon 2>/dev/null || true"
+    }
+    { print }
+  ' "${DOCKERD_PKG}/Makefile" > "${DOCKERD_PKG}/Makefile.tmp" && mv "${DOCKERD_PKG}/Makefile.tmp" "${DOCKERD_PKG}/Makefile"
+
+  # 2) Fix docker-proxy install path: 29.x builds to bundles/binary/ not bundles/binary-daemon/
+  sed -i 's|bundles/binary-daemon/docker-proxy|bundles/binary/docker-proxy|g' "${DOCKERD_PKG}/Makefile" 2>/dev/null || true
 fi
 # git clone --depth 1 --filter=blob:none --sparse https://github.com/immortalwrt/packages.git temp-lede && cd temp-lede && git sparse-checkout set libs/libb64 && cd .. && rm -rf feeds/packages/libs/libb64 && mv temp-lede/libs/libb64 feeds/packages/libs && rm -rf temp-lede
 # git clone --depth 1 --filter=blob:none --sparse https://github.com/immortalwrt/packages.git temp-lede && cd temp-lede && git sparse-checkout set net/transmission && cd .. && rm -rf feeds/packages/net/transmission && mv temp-lede/net/transmission feeds/packages/net && rm -rf temp-lede
