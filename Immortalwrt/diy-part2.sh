@@ -22,19 +22,16 @@ git clone --depth 1 --filter=blob:none --sparse https://github.com/immortalwrt/p
 git clone --depth 1 --filter=blob:none --sparse https://github.com/coolsnowwolf/packages.git temp-lede && cd temp-lede && git sparse-checkout set lang/rust && cd .. && rm -rf feeds/packages/lang/rust && mv temp-lede/lang/rust feeds/packages/lang && rm -rf temp-lede
 git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/packages.git temp-lede && cd temp-lede && git sparse-checkout set lang/lua/lua5.4 && cd .. && rm -rf feeds/packages/lang/lua/lua5.4 && mv temp-lede/lang/lua/lua5.4 feeds/packages/lang/lua/ && rm -rf temp-lede
 
-# Fix dockerd 29.x build failure: copy_binaries() in hack/make/binary-daemon
+# Fix dockerd build failure: copy_binaries() in hack/make/binary-daemon
 # tries to cp executables (containerd, docker-init, rootlesskit, etc.) that
 # don't exist in the GitHub runner's PATH, causing:
 #   cp: cannot stat '': No such file or directory
-# Root cause: runner has /usr/local/bin/runc so the guard check passes, but
-# other executables are missing → command -v returns empty → cp fails.
-# Fix: Use sed to insert a fix line before ./hack/make.sh binary in Build/Compile
+# Solution: Use sed to comment out copy_binaries call in binary-daemon script
 DOCKERD_PKG="feeds/packages/utils/dockerd"
 if [ -f "${DOCKERD_PKG}/Makefile" ]; then
-  # Insert sed command to replace runc path before ./hack/make.sh binary
-  # Using \x27 for single quote in awk output to avoid shell escaping issues
-  sed -i '/^\t.*\.\/hack\/make\.sh binary$/i\\tsed -i "s|/usr/local/bin/runc|/nonexistent/runc|g" hack/make/binary-daemon' "${DOCKERD_PKG}/Makefile"
+  # Insert sed command before ./hack/make.sh binary to patch the binary-daemon script
+  sed -i '/\.\/hack\/make\.sh binary/i\\tsed -i "/copy_binaries/s/^/#/" $(PKG_BUILD_DIR)/hack/make/binary-daemon' "${DOCKERD_PKG}/Makefile"
 
-  # Fix docker-proxy install path: 29.x builds to bundles/binary/ not bundles/binary-daemon/
+  # Also fix docker-proxy install path if needed
   sed -i 's|bundles/binary-daemon/docker-proxy|bundles/binary/docker-proxy|g' "${DOCKERD_PKG}/Makefile" 2>/dev/null || true
 fi
