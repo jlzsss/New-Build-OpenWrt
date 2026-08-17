@@ -41,7 +41,7 @@ git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/packa
 DOCKERD_PKG="feeds/packages/utils/dockerd"
 if [ -f "${DOCKERD_PKG}/Makefile" ]; then
   # Insert sed command before ./hack/make.sh binary to patch the binary-daemon script
-  sed -i '/\.\/hack\/make\.sh binary/i\\tsed -i '\''/copy_binaries/s/^/#/'\'' $(PKG_BUILD_DIR)/hack/make/binary-daemon' "${DOCKERD_PKG}/Makefile"
+  sed -i '/\.\/hack\/make\.sh binary/i\	sed -i "/copy_binaries/s/^/#/" $(PKG_BUILD_DIR)/hack/make/binary-daemon' "${DOCKERD_PKG}/Makefile"
 
   # Also fix docker-proxy install path if needed
   sed -i 's|bundles/binary-daemon/docker-proxy|bundles/binary/docker-proxy|g' "${DOCKERD_PKG}/Makefile" 2>/dev/null || true
