@@ -37,11 +37,24 @@ git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/packa
 # tries to cp executables (containerd, docker-init, rootlesskit, etc.) that
 # don't exist in the GitHub runner's PATH, causing:
 #   cp: cannot stat '': No such file or directory
-# Solution: Use sed to comment out copy_binaries call in binary-daemon script
+# Solution: Add PostConfigure hook to patch binary-daemon script after unpacking
 DOCKERD_PKG="feeds/packages/utils/dockerd"
 if [ -f "${DOCKERD_PKG}/Makefile" ]; then
-  # Insert sed command before ./hack/make.sh binary to patch the binary-daemon script
-  sed -i '/\.\/hack\/make\.sh binary/i\	sed -i "/copy_binaries/s/^/#/" $(PKG_BUILD_DIR)/hack/make/binary-daemon' "${DOCKERD_PKG}/Makefile"
+  # Create a temporary file with the PostConfigure definition
+  cat > /tmp/dockerd_postconfigure.txt << 'EOF'
+
+define Build/PostConfigure
+	sed -i "/copy_binaries/s/^/#/" $(PKG_BUILD_DIR)/hack/make/binary-daemon
+endef
+
+EOF
+  
+  # Insert the PostConfigure definition before Build/Compile
+  sed -i '/^define Build\/Compile/{
+    r /tmp/dockerd_postconfigure.txt
+  }' "${DOCKERD_PKG}/Makefile"
+  
+  rm -f /tmp/dockerd_postconfigure.txt
 
   # Also fix docker-proxy install path if needed
   sed -i 's|bundles/binary-daemon/docker-proxy|bundles/binary/docker-proxy|g' "${DOCKERD_PKG}/Makefile" 2>/dev/null || true
