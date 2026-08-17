@@ -157,6 +157,38 @@ if [ "$CLASHOO_FOUND" -eq 0 ]; then
 fi
 echo "=== clashoo fix done ==="
 
+# ============================================================
+# Fix dockerd: patch Makefile to handle nested binary copying
+# The dockerd build script may fail when copying nested executables
+# (containerd, runc, etc.) in OpenWrt build environment
+# ============================================================
+echo "=== Fixing dockerd Makefile ==="
+DOCKERD_MAKEFILE="feeds/packages/utils/dockerd/Makefile"
+
+if [ -f "$DOCKERD_MAKEFILE" ]; then
+  echo "  Found: $DOCKERD_MAKEFILE"
+  
+  # Create a temporary file with the PostConfigure hook
+  cat > /tmp/dockerd_patch.mk << 'EOF'
+
+define Build/PostConfigure
+	# Patch dockerd make.sh to skip nested executable copying if files don't exist
+	$(SED) 's|cp -a bundles/binary-containerd/* |||' $(PKG_BUILD_DIR)/hack/make.sh
+	$(SED) 's|cp -a bundles/binary-runc/* |||' $(PKG_BUILD_DIR)/hack/make.sh
+	$(SED) 's|cp -a bundles/binary-init/* |||' $(PKG_BUILD_DIR)/hack/make.sh
+endef
+EOF
+  
+  # Insert the PostConfigure hook after Build/Compile definition
+  sed -i '/^define Build\/Compile/r /tmp/dockerd_patch.mk' "$DOCKERD_MAKEFILE"
+  rm -f /tmp/dockerd_patch.mk
+  
+  echo "  -> Added Build/PostConfigure hook to skip missing nested binaries"
+else
+  echo "  WARNING: dockerd Makefile not found at $DOCKERD_MAKEFILE!"
+fi
+echo "=== dockerd fix done ==="
+
 
 
 # ./scripts/feeds update -a
