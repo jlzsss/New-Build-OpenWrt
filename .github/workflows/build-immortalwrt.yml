@@ -152,7 +152,17 @@ jobs:
         id: package
         run: |
           cd openwrt
-          make download -j16
+          # Retry download up to 3 times with delay
+          for i in 1 2 3; do
+            echo "Download attempt $i/3..."
+            make download -j8 V=s && break || {
+              echo "Download failed, retrying in 10 seconds..."
+              sleep 10
+              # Clean failed downloads
+              find dl -size -1024c -exec rm -f {} \;
+            }
+          done
+          # Final check and cleanup
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
           df -hT
