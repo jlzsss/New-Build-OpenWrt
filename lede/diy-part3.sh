@@ -218,23 +218,3 @@ if [ "$FCHOMO_FOUND" -eq 0 ]; then
   echo "  WARNING: luci-app-fchomo scripts not found at patch time"
 fi
 echo "=== fchomo fix done ==="
-
-# ============================================================
-# Fix sound.mk: remove reference to snd-hda-codec-realtek-lib.ko
-# Linux kernel 6.12+ merged realtek-lib into snd-hda-codec-realtek
-# ============================================================
-echo "=== Fixing sound.mk realtek-lib.ko reference ==="
-SOUND_MK="package/kernel/linux/modules/sound.mk"
-if [ -f "$SOUND_MK" ]; then
-  # Remove the .ko file path from FILES lines (don't delete the whole line)
-  sed -i 's|$(LINUX_DIR)/sound/pci/hda/snd-hda-codec-realtek-lib\.ko||g' "$SOUND_MK"
-  sed -i 's|$(LINUX_DIR)/sound/hda/codecs/realtek/snd-hda-codec-realtek-lib\.ko||g' "$SOUND_MK"
-  # Remove snd-hda-codec-realtek-lib from AUTOLOAD lists
-  sed -i 's/snd-hda-codec-realtek-lib//g' "$SOUND_MK"
-  # Clean up leftover trailing backslashes on empty continuation lines
-  sed -i '/^[[:space:]]*\\$/d' "$SOUND_MK"
-  echo "  -> Removed snd-hda-codec-realtek-lib.ko references from sound.mk"
-else
-  echo "  WARNING: sound.mk not found at $SOUND_MK"
-fi
-echo "=== sound.mk fix done ==="
