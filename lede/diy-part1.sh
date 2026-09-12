@@ -29,6 +29,8 @@ git clone --depth 1 -b test https://github.com/frainzy1477/luci-app-clash.git pa
 git clone --depth 1 https://github.com/sirpdboy/netspeedtest.git package/netspeedtest
 git clone --depth 1 https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages package/passwall-packages
+# xray-core 26.9.x 需要 Go >= 1.27，当前 golang feed 只有 1.26.8，回退到最后兼容版本
+git -C package/passwall-packages fetch --depth 1 origin c42adf7b056813d5b56bbd120ad03180e57448e6 && git -C package/passwall-packages checkout c42adf7b056813d5b56bbd120ad03180e57448e6 -- xray-core
 git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/passwall
 git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/passwall2
 git clone --depth 1 https://github.com/Thaolga/openwrt-nekobox  package/openwrt-nekobox
