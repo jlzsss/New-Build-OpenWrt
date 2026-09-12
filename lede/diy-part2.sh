@@ -18,7 +18,7 @@ rm -rf feeds/packages/net/transmission-web-control
 rm -rf feeds/small/geoview
 rm -rf feeds/kenzok8/geoview
 rm -rf feeds/packages/lang/golang
-git clone --depth 1 https://github.com/sbwml/packages_lang_golang -b 26.x feeds/packages/lang/golang
+git clone --depth 1 https://github.com/sbwml/packages_lang_golang -b 27.x feeds/packages/lang/golang
 
 # Fix vim-fuller build failure: remove cp of vim runtime files that may not exist
 # The Makefile uses $(VIMVER) variable, not literal "vim82"
