@@ -23,14 +23,14 @@ git clone --depth 1 https://github.com/xiechangan123/luci-i18n-xray-zh-cn.git pa
 git clone --depth 1 https://github.com/yichya/openwrt-xray-geodata-cut.git package/xray-geodata
 git clone --depth 1 https://github.com/jlzsss/luci-app-v2ray.git package/luci-app-v2ray
 git clone --depth 1 https://github.com/jlzsss/luci-app-sxray.git package/luci-app-sxray
-git clone --depth 1 https://github.com/10000ge10000/luci-app-openclaw.git package/luci-app-openclaw 
+git clone --depth 1 https://github.com/10000ge10000/luci-app-openclaw.git package/luci-app-openclaw
+# 纯 LuCI 包无源码可编译，注入空的 Build/Compile，避免默认 make 进入空的 PKG_BUILD_DIR 报错
+sed -i 's|^$(eval $(call BuildPackage,$(PKG_NAME)))|define Build/Compile\nendef\n\n$(eval $(call BuildPackage,$(PKG_NAME)))|' package/luci-app-openclaw/Makefile
 git clone --depth 1 https://github.com/frainzy1477/luci-app-trojan.git package/luci-app-trojan
 git clone --depth 1 -b test https://github.com/frainzy1477/luci-app-clash.git package/luci-app-clash
 git clone --depth 1 https://github.com/sirpdboy/netspeedtest.git package/netspeedtest
 git clone --depth 1 https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages package/passwall-packages
-# xray-core 26.9.x 需要 Go >= 1.27，当前 golang feed 只有 1.26.8，回退到最后兼容版本
-git -C package/passwall-packages fetch --depth 1 origin c42adf7b056813d5b56bbd120ad03180e57448e6 && git -C package/passwall-packages checkout c42adf7b056813d5b56bbd120ad03180e57448e6 -- xray-core
 git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/passwall
 git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/passwall2
 git clone --depth 1 https://github.com/Thaolga/openwrt-nekobox  package/openwrt-nekobox
