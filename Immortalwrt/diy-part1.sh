@@ -28,6 +28,9 @@ git clone --depth 1 https://github.com/xiechangan123/luci-i18n-xray-zh-cn.git pa
 git clone --depth 1 https://github.com/yichya/openwrt-xray-geodata-cut.git package/xray-geodata
 git clone --depth 1 https://github.com/jlzsss/luci-app-v2ray.git package/luci-app-v2ray
 git clone --depth 1 https://github.com/10000ge10000/luci-app-openclaw.git package/luci-app-openclaw
+# 上游 Makefile 未定义空的 Build/Compile，默认会尝试 make $(PKG_BUILD_DIR) 导致
+# "No targets specified and no makefile found"（PKGARCH:=all 的纯脚本包不需要编译）
+printf 'define Build/Compile\nendef\n' >> package/luci-app-openclaw/Makefile
 git clone --depth 1 https://github.com/jlzsss/luci-app-sxray.git package/luci-app-sxray
 git clone --depth 1 https://github.com/frainzy1477/luci-app-trojan.git package/luci-app-trojan
 git clone --depth 1 -b test https://github.com/frainzy1477/luci-app-clash.git package/luci-app-clash
