@@ -1,0 +1,12 @@
+diff --git a/package/kernel/linux/modules/netdevices.mk b/package/kernel/linux/modules/netdevices.mk
+index 1111111..2222222 100644
+--- a/package/kernel/linux/modules/netdevices.mk
++++ b/package/kernel/linux/modules/netdevices.mk
+@@ -1294,7 +1294,7 @@ define KernelPackage/ixgbe
+   SUBMENU:=$(NETWORK_DEVICES_MENU)
+   TITLE:=Intel 10GbE Intel(R) PRO/10GbE NIC driver
+-  DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp
++  DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp +kmod-libie
+   FILES:=$(LINUX_DIR)/drivers/net/ethernet/intel/ixgbe/ixgbe.ko
+   AUTOLOAD:=$(call AutoLoad,35,ixgbe)
+ endef
