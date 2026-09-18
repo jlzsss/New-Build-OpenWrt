@@ -157,6 +157,19 @@ if [ "$CLASHOO_FOUND" -eq 0 ]; then
 fi
 echo "=== clashoo fix done ==="
 
+# Fix v2dat: remove -linkmode external to avoid CGO requirement
+echo "=== Fixing v2dat linkmode issue ==="
+V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
+if [ -f "$V2DAT_MAKEFILE" ]; then
+  echo "  Found: $V2DAT_MAKEFILE"
+  # Remove -linkmode external and -extldflags from ldflags
+  sed -i 's/-linkmode external -extldflags [^"]*//' "$V2DAT_MAKEFILE"
+  echo "  -> Removed -linkmode external and -extldflags"
+else
+  echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
+fi
+echo "=== v2dat fix done ==="
+
 # ./scripts/feeds update -a
 # ./scripts/feeds install -p kenzok8 luci-app-transmission
 # ./scripts/feeds install -p kenzok8 transmission

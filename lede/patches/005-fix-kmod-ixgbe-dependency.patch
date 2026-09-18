@@ -1,0 +1,12 @@
+diff --git a/package/kernel/linux/modules/netdevices.mk b/package/kernel/linux/modules/netdevices.mk
+index 1111111..2222222 100644
+--- a/package/kernel/linux/modules/netdevices.mk
++++ b/package/kernel/linux/modules/netdevices.mk
+@@ -1,7 +1,7 @@
+ define KernelPackage/ixgbe
+   TITLE:=Intel 82599/82598 10GbE support
+-  DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp
++  DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp +kmod-libie
+   FILES:=$(LINUX_DIR)/drivers/net/ethernet/intel/ixgbe/ixgbe.ko
+   AUTOLOAD:=$(call AutoProbe,ixgbe)
+ endef
