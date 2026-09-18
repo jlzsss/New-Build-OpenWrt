@@ -218,3 +218,13 @@ if [ "$FCHOMO_FOUND" -eq 0 ]; then
   echo "  WARNING: luci-app-fchomo scripts not found at patch time"
 fi
 echo "=== fchomo fix done ==="
+
+# ============================================================
+# Fix kmod-ixgbe dependency: add +kmod-libie
+# Replaces 005-fix-kmod-ixgbe-dependency.patch to avoid patch context mismatch
+# ============================================================
+echo "=== Adding kmod-libie to kmod-ixgbe DEPENDS ==="
+sed -i '/^define KernelPackage\/ixgbe$/,/^endef$/{
+  s/DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp/DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp +kmod-libie/
+}' package/kernel/linux/modules/netdevices.mk
+echo "=== kmod-ixgbe fix done ==="
