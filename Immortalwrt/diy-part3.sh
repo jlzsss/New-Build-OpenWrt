@@ -157,14 +157,18 @@ if [ "$CLASHOO_FOUND" -eq 0 ]; then
 fi
 echo "=== clashoo fix done ==="
 
-# Fix v2dat: remove -linkmode external to avoid CGO requirement
+# Fix v2dat: golang-package.mk unconditionally adds -linkmode external to GO_LDFLAGS,
+# but v2dat builds with CGO_ENABLED=0 which is incompatible with external linking.
+# Override GO_LDFLAGS in the package Makefile to remove -linkmode external.
 echo "=== Fixing v2dat linkmode issue ==="
 V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
 if [ -f "$V2DAT_MAKEFILE" ]; then
   echo "  Found: $V2DAT_MAKEFILE"
-  # Remove -linkmode external and -extldflags from ldflags
-  sed -i 's/-linkmode external -extldflags [^"]*//' "$V2DAT_MAKEFILE"
-  echo "  -> Removed -linkmode external and -extldflags"
+  # Remove any existing GO_LDFLAGS assignments and inject clean override
+  sed -i '/GO_LDFLAGS/d' "$V2DAT_MAKEFILE"
+  # Insert override after golang-package.mk include so it takes effect
+  sed -i '/include.*golang-package.mk/a GO_LDFLAGS:=-trimpath -buildvcs=false' "$V2DAT_MAKEFILE"
+  echo "  -> Overrode GO_LDFLAGS (removed -linkmode external)"
 else
   echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
 fi

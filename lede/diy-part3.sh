@@ -228,3 +228,20 @@ sed -i '/^define KernelPackage\/ixgbe$/,/^endef$/{
   s/DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp/DEPENDS:=@PCI_SUPPORT +kmod-libcrc32c +kmod-ptp +kmod-libie/
 }' package/kernel/linux/modules/netdevices.mk
 echo "=== kmod-ixgbe fix done ==="
+
+# ============================================================
+# Fix v2dat: golang-package.mk unconditionally adds -linkmode external to GO_LDFLAGS,
+# but v2dat builds with CGO_ENABLED=0 which is incompatible with external linking.
+# Override GO_LDFLAGS in the package Makefile to remove -linkmode external.
+# ============================================================
+echo "=== Fixing v2dat linkmode issue ==="
+V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
+if [ -f "$V2DAT_MAKEFILE" ]; then
+  echo "  Found: $V2DAT_MAKEFILE"
+  sed -i '/GO_LDFLAGS/d' "$V2DAT_MAKEFILE"
+  sed -i '/include.*golang-package.mk/a GO_LDFLAGS:=-trimpath -buildvcs=false' "$V2DAT_MAKEFILE"
+  echo "  -> Overrode GO_LDFLAGS (removed -linkmode external)"
+else
+  echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
+fi
+echo "=== v2dat fix done ==="
