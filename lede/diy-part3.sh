@@ -230,17 +230,26 @@ sed -i '/^define KernelPackage\/ixgbe$/,/^endef$/{
 echo "=== kmod-ixgbe fix done ==="
 
 # ============================================================
-# Fix v2dat: golang-package.mk unconditionally adds -linkmode external to GO_LDFLAGS,
-# but v2dat builds with CGO_ENABLED=0 which is incompatible with external linking.
-# Override GO_LDFLAGS in the package Makefile to remove -linkmode external.
+# Fix v2dat: the package Makefile forces CGO_ENABLED=0, but golang-package.mk's
+# GO_PKG_DEFAULT_LDFLAGS always carries "-linkmode external", and Go rejects that
+# combination with: "-linkmode requires external (cgo) linking, but cgo is not enabled".
+# Redefine GO_PKG_DEFAULT_LDFLAGS (the variable actually used by GO_PKG_INSTALL_ARGS);
+# GO_LDFLAGS does not exist in golang-package.mk.
 # ============================================================
 echo "=== Fixing v2dat linkmode issue ==="
 V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
 if [ -f "$V2DAT_MAKEFILE" ]; then
   echo "  Found: $V2DAT_MAKEFILE"
-  sed -i '/GO_LDFLAGS/d' "$V2DAT_MAKEFILE"
-  sed -i '/include.*golang-package.mk/a GO_LDFLAGS:=-trimpath -buildvcs=false' "$V2DAT_MAKEFILE"
-  echo "  -> Overrode GO_LDFLAGS (removed -linkmode external)"
+  if grep -q 'GO_PKG_DEFAULT_LDFLAGS' "$V2DAT_MAKEFILE"; then
+    echo "  -> Already patched"
+  else
+    cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
+
+# CGO_ENABLED=0: keep Go's internal linker, drop -linkmode external
+GO_PKG_DEFAULT_LDFLAGS=-buildid '$(SOURCE_DATE_EPOCH)'
+V2DAT_PATCH
+    echo "  -> Overrode GO_PKG_DEFAULT_LDFLAGS (dropped -linkmode external)"
+  fi
 else
   echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
 fi
