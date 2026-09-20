@@ -254,3 +254,67 @@ else
   echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
 fi
 echo "=== v2dat fix done ==="
+
+# ============================================================
+# Fix luci-app-netspeedtest: replace python3-pkg-resources with python3-light
+# python3-pkg-resources doesn't exist in OpenWrt feeds; python3-light provides equivalent
+# ============================================================
+echo "=== Fixing netspeedtest python3-pkg-resources dependency ==="
+NETSPEEDTEST_MAKEFILE="package/netspeedtest/Makefile"
+if [ -f "$NETSPEEDTEST_MAKEFILE" ]; then
+  echo "  Found: $NETSPEEDTEST_MAKEFILE"
+  sed -i 's/python3-pkg-resources/python3-light/g' "$NETSPEEDTEST_MAKEFILE"
+  echo "  -> Replaced python3-pkg-resources with python3-light"
+else
+  # Also try in feeds
+  find feeds -path "*/netspeedtest/Makefile" -exec sed -i 's/python3-pkg-resources/python3-light/g' {} \; 2>/dev/null
+  echo "  -> Patched feeds netspeedtest Makefiles"
+fi
+echo "=== netspeedtest fix done ==="
+
+# ============================================================
+# Fix luci-app-ssr-plus: replace bind-dig with bind-tools
+# bind-dig is not a valid package name; bind-tools provides dig
+# ============================================================
+echo "=== Fixing ssr-plus bind-dig dependency ==="
+SSR_PLUS_FOUND=0
+for ssr_makefile in feeds/kenzok8/luci-app-ssr-plus/Makefile feeds/small/luci-app-ssr-plus/Makefile feeds/kenzo/luci-app-ssr-plus/Makefile; do
+  if [ -f "$ssr_makefile" ]; then
+    echo "  Found: $ssr_makefile"
+    sed -i 's/bind-dig/bind-tools/g' "$ssr_makefile"
+    echo "  -> Replaced bind-dig with bind-tools"
+    SSR_PLUS_FOUND=1
+  fi
+done
+# Also search package/ directory
+for ssr_makefile in package/*/Makefile; do
+  if [ -f "$ssr_makefile" ] && grep -q "bind-dig" "$ssr_makefile" 2>/dev/null; then
+    echo "  Found: $ssr_makefile"
+    sed -i 's/bind-dig/bind-tools/g' "$ssr_makefile"
+    echo "  -> Replaced bind-dig with bind-tools"
+    SSR_PLUS_FOUND=1
+  fi
+done
+if [ "$SSR_PLUS_FOUND" -eq 0 ]; then
+  echo "  WARNING: luci-app-ssr-plus Makefile not found, searching all feeds..."
+  find feeds -name "Makefile" -exec sed -i 's/bind-dig/bind-tools/g' {} \; 2>/dev/null
+  echo "  -> Searched all feed Makefiles"
+fi
+echo "=== ssr-plus fix done ==="
+
+# ============================================================
+# Fix architecture incompatibility: ensure packages support x86_64
+# Remove architecture restrictions from problematic packages
+# ============================================================
+echo "=== Fixing architecture compatibility ==="
+# Remove any Build/NoArchitecture or similar restrictions
+find feeds package -name "Makefile" \( -path "*/netspeedtest/*" -o -path "*/luci-app-ssr-plus/*" \) -exec sed -i '/^  ARCH:/d; /^ARCH:=/d' {} \; 2>/dev/null
+echo "=== architecture fix done ==="
+
+# ============================================================
+# Ensure python3-light and bind-tools are available
+# ============================================================
+echo "=== Ensuring required packages are available ==="
+[ -d "feeds/packages/python/python3-light" ] && echo "python3-light available in feeds" || echo "WARNING: python3-light not found in feeds"
+[ -d "feeds/packages/net/bind-tools" ] && echo "bind-tools available in feeds" || echo "WARNING: bind-tools not found in feeds"
+echo "=== package availability check done ==="
