@@ -312,6 +312,26 @@ find feeds package -name "Makefile" \( -path "*/netspeedtest/*" -o -path "*/luci
 echo "=== architecture fix done ==="
 
 # ============================================================
+# Fix bind-rndc "is missing dependencies for the following
+# libraries: libdns-9.20.16.so ..."
+# bind's private .so files are packaged by bind-libs. When
+# bind-libs is not selected no built ipk owns those libraries,
+# so the ipk dependency check of bind-rndc fails. bind-libs in
+# turn needs liburcu.
+# ============================================================
+echo "=== Ensuring bind-libs is selected ==="
+if [ -f .config ]; then
+  for sym in bind-libs liburcu; do
+    sed -i "/CONFIG_PACKAGE_$sym/d" .config
+    printf 'CONFIG_PACKAGE_%s=y\n' "$sym" >> .config
+    echo "  -> CONFIG_PACKAGE_$sym=y"
+  done
+else
+  echo "  WARNING: .config not found"
+fi
+echo "=== bind-libs check done ==="
+
+# ============================================================
 # Ensure python3-light and bind-tools are available
 # ============================================================
 echo "=== Ensuring required packages are available ==="
