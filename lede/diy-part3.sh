@@ -256,33 +256,33 @@ fi
 echo "=== v2dat fix done ==="
 
 # ============================================================
-# Fix luci-app-netspeedtest: replace python3-pkg-resources with python3-light
-# python3-pkg-resources doesn't exist in OpenWrt feeds; python3-light provides equivalent
+# Fix luci-app-netspeedtest: replace python3-pkg-resources with python3
+# python3-pkg-resources doesn't exist in OpenWrt feeds
+# python3 provides the pkg-resources module
 # ============================================================
 echo "=== Fixing netspeedtest python3-pkg-resources dependency ==="
-NETSPEEDTEST_MAKEFILE="package/netspeedtest/Makefile"
-if [ -f "$NETSPEEDTEST_MAKEFILE" ]; then
-  echo "  Found: $NETSPEEDTEST_MAKEFILE"
-  sed -i 's/python3-pkg-resources/python3-light/g' "$NETSPEEDTEST_MAKEFILE"
-  echo "  -> Replaced python3-pkg-resources with python3-light"
-else
-  # Also try in feeds
-  find feeds -path "*/netspeedtest/Makefile" -exec sed -i 's/python3-pkg-resources/python3-light/g' {} \; 2>/dev/null
-  echo "  -> Patched feeds netspeedtest Makefiles"
+# Fix in package/netspeedtest/
+if [ -f "package/netspeedtest/Makefile" ]; then
+  echo "  Found: package/netspeedtest/Makefile"
+  sed -i 's/python3-pkg-resources/python3/g' "package/netspeedtest/Makefile"
+  echo "  -> Replaced python3-pkg-resources with python3"
 fi
+# Fix in feeds/
+find feeds -path "*/netspeedtest/Makefile" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
+find feeds -name "Makefile" -path "*netspeedtest*" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
 echo "=== netspeedtest fix done ==="
 
 # ============================================================
-# Fix luci-app-ssr-plus: replace bind-dig with bind-tools
-# bind-dig is not a valid package name; bind-tools provides dig
+# Fix luci-app-ssr-plus: replace bind-dig with bind
+# bind-dig is not a valid package name; bind provides dig
 # ============================================================
 echo "=== Fixing ssr-plus bind-dig dependency ==="
 SSR_PLUS_FOUND=0
 for ssr_makefile in feeds/kenzok8/luci-app-ssr-plus/Makefile feeds/small/luci-app-ssr-plus/Makefile feeds/kenzo/luci-app-ssr-plus/Makefile; do
   if [ -f "$ssr_makefile" ]; then
     echo "  Found: $ssr_makefile"
-    sed -i 's/bind-dig/bind-tools/g' "$ssr_makefile"
-    echo "  -> Replaced bind-dig with bind-tools"
+    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
+    echo "  -> Replaced bind-dig with bind"
     SSR_PLUS_FOUND=1
   fi
 done
@@ -290,14 +290,14 @@ done
 for ssr_makefile in package/*/Makefile; do
   if [ -f "$ssr_makefile" ] && grep -q "bind-dig" "$ssr_makefile" 2>/dev/null; then
     echo "  Found: $ssr_makefile"
-    sed -i 's/bind-dig/bind-tools/g' "$ssr_makefile"
-    echo "  -> Replaced bind-dig with bind-tools"
+    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
+    echo "  -> Replaced bind-dig with bind"
     SSR_PLUS_FOUND=1
   fi
 done
 if [ "$SSR_PLUS_FOUND" -eq 0 ]; then
   echo "  WARNING: luci-app-ssr-plus Makefile not found, searching all feeds..."
-  find feeds -name "Makefile" -exec sed -i 's/bind-dig/bind-tools/g' {} \; 2>/dev/null
+  find feeds -name "Makefile" -exec sed -i 's/bind-dig/bind/g' {} \; 2>/dev/null
   echo "  -> Searched all feed Makefiles"
 fi
 echo "=== ssr-plus fix done ==="
@@ -326,15 +326,33 @@ if [ -f .config ]; then
     printf 'CONFIG_PACKAGE_%s=y\n' "$sym" >> .config
     echo "  -> CONFIG_PACKAGE_$sym=y"
   done
+  # Remove any stale python3-light entries
+  sed -i '/CONFIG_PACKAGE_python3-light/d' .config
+
+  # Also patch bind-rndc DEPENDS in the bind Makefile as a fallback
+  BIND_MAKEFILE=$(find feeds -path "*/net/bind/Makefile" -print -quit 2>/dev/null)
+  if [ -n "$BIND_MAKEFILE" ]; then
+    if grep -q "define Package/bind-rndc" "$BIND_MAKEFILE" && ! grep -A3 "define Package/bind-rndc" "$BIND_MAKEFILE" | grep -q "bind-libs"; then
+      sed -i '/^define Package\/bind-rndc$/,/^endef$/{s/DEPENDS:=/DEPENDS:=+bind-libs /}' "$BIND_MAKEFILE"
+      echo "  -> Patched bind-rndc DEPENDS to +bind-libs in bind Makefile"
+    fi
+  fi
+
 else
   echo "  WARNING: .config not found"
 fi
 echo "=== bind-libs check done ==="
 
 # ============================================================
-# Ensure python3-light and bind-tools are available
+# Verify required packages are selected in .config
+# python3 provides pkg-resources; bind-tools is a subpackage of bind
 # ============================================================
-echo "=== Ensuring required packages are available ==="
-[ -d "feeds/packages/python/python3-light" ] && echo "python3-light available in feeds" || echo "WARNING: python3-light not found in feeds"
-[ -d "feeds/packages/net/bind-tools" ] && echo "bind-tools available in feeds" || echo "WARNING: bind-tools not found in feeds"
-echo "=== package availability check done ==="
+echo "=== Verifying .config packages ==="
+if [ -f .config ]; then
+  grep -q "CONFIG_PACKAGE_python3=y" .config && echo "  -> python3 selected" || echo "  -> WARNING: python3 not selected"
+  grep -q "CONFIG_PACKAGE_bind-libs=y" .config && echo "  -> bind-libs selected" || echo "  -> WARNING: bind-libs not selected"
+  grep -q "CONFIG_PACKAGE_bind=y" .config && echo "  -> bind selected" || echo "  -> WARNING: bind not selected"
+else
+  echo "  WARNING: .config not found"
+fi
+echo "=== .config verification done ==="
