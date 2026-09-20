@@ -160,26 +160,48 @@ echo "=== clashoo fix done ==="
 # Fix v2dat: the package Makefile forces CGO_ENABLED=0, but golang-package.mk's
 # GO_PKG_DEFAULT_LDFLAGS always carries "-linkmode external", and Go rejects that
 # combination with: "-linkmode requires external (cgo) linking, but cgo is not enabled".
-# Redefine GO_PKG_DEFAULT_LDFLAGS (the variable actually used by GO_PKG_INSTALL_ARGS)
-# so v2dat links internally; GO_LDFLAGS does not exist in golang-package.mk.
+# Override GO_PKG_DEFAULT_LDFLAGS to drop -linkmode external, and enable CGO_ENABLED=1
+# so the external linker can be used properly.
 echo "=== Fixing v2dat linkmode issue ==="
 V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
 if [ -f "$V2DAT_MAKEFILE" ]; then
   echo "  Found: $V2DAT_MAKEFILE"
-  if grep -q 'GO_PKG_DEFAULT_LDFLAGS' "$V2DAT_MAKEFILE"; then
+  if grep -q 'CGO_ENABLED:=1' "$V2DAT_MAKEFILE" && grep -q 'GO_PKG_DEFAULT_LDFLAGS' "$V2DAT_MAKEFILE"; then
     echo "  -> Already patched"
   else
+    # Remove any previous incomplete patches to avoid duplicates
+    sed -i '/^# CGO_ENABLED=0: keep Go.*internal linker/d' "$V2DAT_MAKEFILE"
+    sed -i '/^GO_PKG_DEFAULT_LDFLAGS=-buildid/d' "$V2DAT_MAKEFILE"
     cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
 
-# CGO_ENABLED=0: keep Go's internal linker, drop -linkmode external
+# Enable CGO so -linkmode external works
+CGO_ENABLED:=1
+# Drop -linkmode external; use Go's internal linker instead
 GO_PKG_DEFAULT_LDFLAGS=-buildid '$(SOURCE_DATE_EPOCH)'
 V2DAT_PATCH
-    echo "  -> Overrode GO_PKG_DEFAULT_LDFLAGS (dropped -linkmode external)"
+    echo "  -> Enabled CGO_ENABLED=1 and overrode GO_PKG_DEFAULT_LDFLAGS"
   fi
 else
   echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
 fi
 echo "=== v2dat fix done ==="
+
+# Also patch golang-package.mk from sbwml feed to not force CGO_ENABLED=0
+# Search for golang-package.mk in the golang feed directory
+echo "=== Patching golang-package.mk for CGO ==="
+GOLANG_PKG_MK=$(find feeds/packages/lang/golang -name "golang-package.mk" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_PKG_MK" ]; then
+  echo "  Found: $GOLANG_PKG_MK"
+  if grep -qE 'CGO_ENABLED[[:space:]]*[:?]?=' "$GOLANG_PKG_MK"; then
+    sed -i -E 's/^(CGO_ENABLED)[[:space:]]*[:?]?=[[:space:]]*.*/\1:=1/' "$GOLANG_PKG_MK"
+    echo "  -> Set CGO_ENABLED:=1 in golang-package.mk"
+  else
+    echo "  -> CGO_ENABLED not found, already patched or different format"
+  fi
+else
+  echo "  WARNING: golang-package.mk not found"
+fi
+echo "=== golang-package.mk patch done ==="
 
 # ./scripts/feeds update -a
 # ./scripts/feeds install -p kenzok8 luci-app-transmission
