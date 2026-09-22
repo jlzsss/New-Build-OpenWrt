@@ -160,48 +160,86 @@ echo "=== clashoo fix done ==="
 # Fix v2dat: the package Makefile forces CGO_ENABLED=0, but golang-package.mk's
 # GO_PKG_DEFAULT_LDFLAGS always carries "-linkmode external", and Go rejects that
 # combination with: "-linkmode requires external (cgo) linking, but cgo is not enabled".
-# Override GO_PKG_DEFAULT_LDFLAGS to drop -linkmode external, and enable CGO_ENABLED=1
-# so the external linker can be used properly.
+# Solution: force CGO_ENABLED=1 at the golang build system level and override ldflags.
 echo "=== Fixing v2dat linkmode issue ==="
+
+# Step 1: Patch golang-package.mk to set CGO_ENABLED=1
+# This is the primary fix - golang-package.mk defines CGO_ENABLED which gets passed
+# to golang-build.sh as an environment variable prefix
+echo "=== Patching golang-package.mk ==="
+GOLANG_PKG_MK=$(find feeds/packages/lang/golang -name "golang-package.mk" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_PKG_MK" ]; then
+  echo "  Found: $GOLANG_PKG_MK"
+  # Try multiple patterns: CGO_ENABLED := 0, CGO_ENABLED ?= 0, CGO_ENABLED = 0, etc.
+  if grep -qE '^\s*CGO_ENABLED\s*[:?]?=' "$GOLANG_PKG_MK"; then
+    sed -i -E 's/^[[:space:]]*CGO_ENABLED[[:space:]]*[:?]?=[[:space:]]*.*/CGO_ENABLED := 1/' "$GOLANG_PKG_MK"
+    echo "  -> Set CGO_ENABLED := 1 in golang-package.mk"
+  else
+    # If not found, add it at the top
+    sed -i '1iCGO_ENABLED := 1' "$GOLANG_PKG_MK"
+    echo "  -> Added CGO_ENABLED := 1 at top of golang-package.mk"
+  fi
+else
+  echo "  WARNING: golang-package.mk not found in feeds/packages/lang/golang"
+fi
+
+# Step 2: Patch golang-build.sh to force CGO_ENABLED=1
+# golang-build.sh may set CGO_ENABLED=0 internally via CGO_ENABLED="${CGO_ENABLED:-0}"
+echo "=== Patching golang-build.sh ==="
+GOLANG_BUILD_SH=$(find feeds/packages/lang/golang -name "golang-build.sh" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_BUILD_SH" ]; then
+  echo "  Found: $GOLANG_BUILD_SH"
+    # Replace CGO_ENABLED=0 and CGO_ENABLED="${CGO_ENABLED:-0}" patterns
+    sed -i 's/CGO_ENABLED=0/CGO_ENABLED=1/g' "$GOLANG_BUILD_SH"
+    sed -i 's/CGO_ENABLED="${CGO_ENABLED:-0}"/CGO_ENABLED="${CGO_ENABLED:-1}"/g' "$GOLANG_BUILD_SH"
+    # Also ensure CGO_ENABLED=1 is exported at the top
+  if ! grep -q 'export CGO_ENABLED=1' "$GOLANG_BUILD_SH"; then
+    sed -i '1iexport CGO_ENABLED=1' "$GOLANG_BUILD_SH"
+    echo "  -> Added export CGO_ENABLED=1 at top"
+  fi
+  echo "  -> Fixed CGO_ENABLED references"
+else
+  echo "  WARNING: golang-build.sh not found"
+fi
+
+# Step 3: Patch the golang build script in the openwrt tree (if already installed)
+echo "=== Patching installed golang scripts ==="
+GOLANG_BUILD_INSTALLED=$(find openwrt/feeds/packages/lang/golang -name "golang-build.sh" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_BUILD_INSTALLED" ]; then
+  if grep -q 'CGO_ENABLED=0' "$GOLANG_BUILD_INSTALLED"; then
+    sed -i 's/CGO_ENABLED=0/CGO_ENABLED=1/g' "$GOLANG_BUILD_INSTALLED"
+    echo "  -> Fixed installed golang-build.sh"
+  fi
+fi
+GOLANG_PKG_INSTALLED=$(find openwrt/feeds/packages/lang/golang -name "golang-package.mk" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_PKG_INSTALLED" ]; then
+  if grep -qE 'CGO_ENABLED' "$GOLANG_PKG_INSTALLED"; then
+    sed -i -E 's/^[[:space:]]*CGO_ENABLED[[:space:]]*[:?]?=[[:space:]]*.*/CGO_ENABLED := 1/' "$GOLANG_PKG_INSTALLED"
+    echo "  -> Fixed installed golang-package.mk"
+  fi
+fi
+
+# Step 4: Fix v2dat Makefile - override GO_PKG_DEFAULT_LDFLAGS to drop -linkmode external
+echo "=== Fixing v2dat Makefile ==="
 V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
 if [ -f "$V2DAT_MAKEFILE" ]; then
   echo "  Found: $V2DAT_MAKEFILE"
-  if grep -q 'CGO_ENABLED:=1' "$V2DAT_MAKEFILE" && grep -q 'GO_PKG_DEFAULT_LDFLAGS' "$V2DAT_MAKEFILE"; then
-    echo "  -> Already patched"
-  else
-    # Remove any previous incomplete patches to avoid duplicates
-    sed -i '/^# CGO_ENABLED=0: keep Go.*internal linker/d' "$V2DAT_MAKEFILE"
-    sed -i '/^GO_PKG_DEFAULT_LDFLAGS=-buildid/d' "$V2DAT_MAKEFILE"
-    cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
+  # Remove any previous patches
+  sed -i '/^# CGO_ENABLED=0: keep Go.*internal linker/d' "$V2DAT_MAKEFILE"
+  sed -i '/^GO_PKG_DEFAULT_LDFLAGS=-buildid/d' "$V2DAT_MAKEFILE"
+  # Remove any previous appended blocks
+  sed -i '/^# Enable CGO so -linkmode external works/,/^V2DAT_PATCH$/d' "$V2DAT_MAKEFILE"
+  # Append the fix
+  cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
 
-# Enable CGO so -linkmode external works
-CGO_ENABLED:=1
-# Drop -linkmode external; use Go's internal linker instead
+# Override Go linker flags: drop -linkmode external so it works with any CGO setting
 GO_PKG_DEFAULT_LDFLAGS=-buildid '$(SOURCE_DATE_EPOCH)'
 V2DAT_PATCH
-    echo "  -> Enabled CGO_ENABLED=1 and overrode GO_PKG_DEFAULT_LDFLAGS"
-  fi
+  echo "  -> Overrode GO_PKG_DEFAULT_LDFLAGS (dropped -linkmode external)"
 else
   echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
 fi
 echo "=== v2dat fix done ==="
-
-# Also patch golang-package.mk from sbwml feed to not force CGO_ENABLED=0
-# Search for golang-package.mk in the golang feed directory
-echo "=== Patching golang-package.mk for CGO ==="
-GOLANG_PKG_MK=$(find feeds/packages/lang/golang -name "golang-package.mk" -type f 2>/dev/null | head -1)
-if [ -n "$GOLANG_PKG_MK" ]; then
-  echo "  Found: $GOLANG_PKG_MK"
-  if grep -qE 'CGO_ENABLED[[:space:]]*[:?]?=' "$GOLANG_PKG_MK"; then
-    sed -i -E 's/^(CGO_ENABLED)[[:space:]]*[:?]?=[[:space:]]*.*/\1:=1/' "$GOLANG_PKG_MK"
-    echo "  -> Set CGO_ENABLED:=1 in golang-package.mk"
-  else
-    echo "  -> CGO_ENABLED not found, already patched or different format"
-  fi
-else
-  echo "  WARNING: golang-package.mk not found"
-fi
-echo "=== golang-package.mk patch done ==="
 
 # ./scripts/feeds update -a
 # ./scripts/feeds install -p kenzok8 luci-app-transmission

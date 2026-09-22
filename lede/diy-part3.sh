@@ -230,28 +230,85 @@ sed -i '/^define KernelPackage\/ixgbe$/,/^endef$/{
 echo "=== kmod-ixgbe fix done ==="
 
 # ============================================================
-# Fix v2dat: the package Makefile forces CGO_ENABLED=0, but golang-package.mk's
-# GO_PKG_DEFAULT_LDFLAGS always carries "-linkmode external", and Go rejects that
-# combination with: "-linkmode requires external (cgo) linking, but cgo is not enabled".
-# Redefine GO_PKG_DEFAULT_LDFLAGS (the variable actually used by GO_PKG_INSTALL_ARGS);
-# GO_LDFLAGS does not exist in golang-package.mk.
+# Fix v2dat: CGO_ENABLED=0 conflicts with -linkmode external.
+# Force CGO_ENABLED=1 at the golang build system level.
 # ============================================================
 echo "=== Fixing v2dat linkmode issue ==="
+
+# Patch golang-package.mk to set CGO_ENABLED=1
+echo "=== Patching golang-package.mk ==="
+GOLANG_PKG_MK=$(find feeds/packages/lang/golang -name "golang-package.mk" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_PKG_MK" ]; then
+  echo "  Found: $GOLANG_PKG_MK"
+  if grep -qE '^\s*CGO_ENABLED\s*[:?]?=' "$GOLANG_PKG_MK"; then
+    sed -i -E 's/^[[:space:]]*CGO_ENABLED[[:space:]]*[:?]?=[[:space:]]*.*/CGO_ENABLED := 1/' "$GOLANG_PKG_MK"
+    echo "  -> Set CGO_ENABLED := 1 in golang-package.mk"
+  else
+    sed -i '1iCGO_ENABLED := 1' "$GOLANG_PKG_MK"
+    echo "  -> Added CGO_ENABLED := 1 at top of golang-package.mk"
+  fi
+else
+  echo "  WARNING: golang-package.mk not found"
+fi
+
+# Patch golang-build.sh to force CGO_ENABLED=1
+echo "=== Patching golang-build.sh ==="
+GOLANG_BUILD_SH=$(find feeds/packages/lang/golang -name "golang-build.sh" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_BUILD_SH" ]; then
+  echo "  Found: $GOLANG_BUILD_SH"
+  sed -i 's/CGO_ENABLED=0/CGO_ENABLED=1/g' "$GOLANG_BUILD_SH"
+  sed -i 's/CGO_ENABLED="${CGO_ENABLED:-0}"/CGO_ENABLED="${CGO_ENABLED:-1}"/g' "$GOLANG_BUILD_SH"
+  sed -i '1iexport CGO_ENABLED=1' "$GOLANG_BUILD_SH"
+  echo "  -> Forced CGO_ENABLED=1"
+fi
+
+# Also patch installed copies in openwrt tree
+GOLANG_BUILD_INSTALLED=$(find openwrt/feeds/packages/lang/golang -name "golang-build.sh" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_BUILD_INSTALLED" ]; then
+  sed -i 's/CGO_ENABLED=0/CGO_ENABLED=1/g' "$GOLANG_BUILD_INSTALLED" 2>/dev/null
+  sed -i 's/CGO_ENABLED="${CGO_ENABLED:-0}"/CGO_ENABLED="${CGO_ENABLED:-1}"/g' "$GOLANG_BUILD_INSTALLED" 2>/dev/null
+  echo "  -> Fixed installed golang-build.sh"
+fi
+GOLANG_PKG_INSTALLED=$(find openwrt/feeds/packages/lang/golang -name "golang-package.mk" -type f 2>/dev/null | head -1)
+if [ -n "$GOLANG_PKG_INSTALLED" ]; then
+  sed -i -E 's/^[[:space:]]*CGO_ENABLED[[:space:]]*[:?]?=[[:space:]]*.*/CGO_ENABLED := 1/' "$GOLANG_PKG_INSTALLED" 2>/dev/null
+  echo "  -> Fixed installed golang-package.mk"
+fi
+
+# Fix v2dat Makefile - override GO_PKG_DEFAULT_LDFLAGS to drop -linkmode external
 V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
 if [ -f "$V2DAT_MAKEFILE" ]; then
   echo "  Found: $V2DAT_MAKEFILE"
-  if grep -q 'GO_PKG_DEFAULT_LDFLAGS' "$V2DAT_MAKEFILE"; then
-    echo "  -> Already patched"
-  else
-    cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
+  sed -i '/^# CGO_ENABLED=0: keep Go.*internal linker/d' "$V2DAT_MAKEFILE"
+  sed -i '/^GO_PKG_DEFAULT_LDFLAGS=-buildid/d' "$V2DAT_MAKEFILE"
+  cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
 
-# CGO_ENABLED=0: keep Go's internal linker, drop -linkmode external
+# Override Go linker flags: drop -linkmode external
 GO_PKG_DEFAULT_LDFLAGS=-buildid '$(SOURCE_DATE_EPOCH)'
 V2DAT_PATCH
-    echo "  -> Overrode GO_PKG_DEFAULT_LDFLAGS (dropped -linkmode external)"
-  fi
+  echo "  -> Overrode GO_PKG_DEFAULT_LDFLAGS (dropped -linkmode external)"
 else
-  echo "  WARNING: v2dat Makefile not found at $V2DAT_MAKEFILE"
+  echo "  WARNING: v2dat Makefile not found"
+fi
+echo "=== v2dat fix done ==="
+if [ -n "$GOLANG_BUILD_INSTALLED" ]; then
+  sed -i 's/CGO_ENABLED=0/CGO_ENABLED=1/g' "$GOLANG_BUILD_INSTALLED" 2>/dev/null
+fi
+
+# Fix v2dat Makefile - override GO_PKG_DEFAULT_LDFLAGS to drop -linkmode external
+V2DAT_MAKEFILE="feeds/haiibo/v2dat/Makefile"
+if [ -f "$V2DAT_MAKEFILE" ]; then
+  echo "  Found: $V2DAT_MAKEFILE"
+  sed -i '/^# CGO_ENABLED=0: keep Go.*internal linker/d' "$V2DAT_MAKEFILE"
+  sed -i '/^GO_PKG_DEFAULT_LDFLAGS=-buildid/d' "$V2DAT_MAKEFILE"
+  cat >> "$V2DAT_MAKEFILE" <<'V2DAT_PATCH'
+
+# Override Go linker flags: drop -linkmode external
+GO_PKG_DEFAULT_LDFLAGS=-buildid '$(SOURCE_DATE_EPOCH)'
+V2DAT_PATCH
+  echo "  -> Overrode GO_PKG_DEFAULT_LDFLAGS (dropped -linkmode external)"
+else
+  echo "  WARNING: v2dat Makefile not found"
 fi
 echo "=== v2dat fix done ==="
 
@@ -312,6 +369,81 @@ find feeds package -name "Makefile" \( -path "*/netspeedtest/*" -o -path "*/luci
 echo "=== architecture fix done ==="
 
 # ============================================================
+# Fix python3-light: add it back to .config and fix dependent packages
+# The previous code removed python3-light but many packages depend on it.
+# python3-light is a metapackage that provides python3 core modules.
+# If it doesn't exist in feeds, we replace python3-light dep with python3
+# ============================================================
+echo "=== Fixing python3-light dependency ==="
+if [ -f .config ]; then
+  # Remove stale entries and add python3-light
+  sed -i '/CONFIG_PACKAGE_python3-light/d' .config
+  printf 'CONFIG_PACKAGE_python3-light=y\n' >> .config
+  echo "  -> Added CONFIG_PACKAGE_python3-light=y"
+fi
+
+# Also fix python3-light dependency in all package Makefiles
+# Replace python3-light dep with python3 where python3-light doesn't exist
+echo "  -> Replacing python3-light with python3 in Makefiles..."
+find feeds package -name "Makefile" -exec sed -i 's/+python3-light/+python3/g' {} \; 2>/dev/null
+echo "=== python3-light fix done ==="
+
+# ============================================================
+# Fix luci-app-netspeedtest: replace python3-pkg-resources with python3
+# python3-pkg-resources doesn't exist in OpenWrt feeds
+# python3 provides the pkg-resources module
+# ============================================================
+echo "=== Fixing netspeedtest python3-pkg-resources dependency ==="
+# Fix in package/netspeedtest/
+if [ -f "package/netspeedtest/Makefile" ]; then
+  echo "  Found: package/netspeedtest/Makefile"
+  sed -i 's/python3-pkg-resources/python3/g' "package/netspeedtest/Makefile"
+  echo "  -> Replaced python3-pkg-resources with python3"
+fi
+# Fix in feeds/
+find feeds -path "*/netspeedtest/Makefile" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
+find feeds -name "Makefile" -path "*netspeedtest*" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
+echo "=== netspeedtest fix done ==="
+
+# ============================================================
+# Fix luci-app-ssr-plus: replace bind-dig with bind
+# bind-dig is not a valid package name; bind provides dig
+# ============================================================
+echo "=== Fixing ssr-plus bind-dig dependency ==="
+SSR_PLUS_FOUND=0
+for ssr_makefile in feeds/kenzok8/luci-app-ssr-plus/Makefile feeds/small/luci-app-ssr-plus/Makefile feeds/kenzo/luci-app-ssr-plus/Makefile; do
+  if [ -f "$ssr_makefile" ]; then
+    echo "  Found: $ssr_makefile"
+    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
+    echo "  -> Replaced bind-dig with bind"
+    SSR_PLUS_FOUND=1
+  fi
+done
+# Also search package/ directory
+for ssr_makefile in package/*/Makefile; do
+  if [ -f "$ssr_makefile" ] && grep -q "bind-dig" "$ssr_makefile" 2>/dev/null; then
+    echo "  Found: $ssr_makefile"
+    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
+    echo "  -> Replaced bind-dig with bind"
+    SSR_PLUS_FOUND=1
+  fi
+done
+if [ "$SSR_PLUS_FOUND" -eq 0 ]; then
+  echo "  WARNING: luci-app-ssr-plus Makefile not found, searching all feeds..."
+  find feeds -name "Makefile" -exec sed -i 's/bind-dig/bind/g' {} \; 2>/dev/null
+  echo "  -> Searched all feed Makefiles"
+fi
+echo "=== ssr-plus fix done ==="
+
+# ============================================================
+# Fix architecture incompatibility: ensure packages support x86_64
+# Remove architecture restrictions from problematic packages
+# ============================================================
+echo "=== Fixing architecture compatibility ==="
+find feeds package -name "Makefile" \( -path "*/netspeedtest/*" -o -path "*/luci-app-ssr-plus/*" \) -exec sed -i '/^  ARCH:/d; /^ARCH:=/d' {} \; 2>/dev/null
+echo "=== architecture fix done ==="
+
+# ============================================================
 # Fix bind-rndc "is missing dependencies for the following
 # libraries: libdns-9.20.16.so ..."
 # bind's private .so files are packaged by bind-libs. When
@@ -319,15 +451,18 @@ echo "=== architecture fix done ==="
 # so the ipk dependency check of bind-rndc fails. bind-libs in
 # turn needs liburcu.
 # ============================================================
-echo "=== Ensuring bind-libs is selected ==="
+echo "=== Ensuring bind-libs and liburcu are selected ==="
 if [ -f .config ]; then
   for sym in bind-libs liburcu; do
     sed -i "/CONFIG_PACKAGE_$sym/d" .config
     printf 'CONFIG_PACKAGE_%s=y\n' "$sym" >> .config
     echo "  -> CONFIG_PACKAGE_$sym=y"
   done
-  # Remove any stale python3-light entries
+  # Ensure python3-light and python3 are selected
   sed -i '/CONFIG_PACKAGE_python3-light/d' .config
+  printf 'CONFIG_PACKAGE_python3-light=y\n' >> .config
+  sed -i '/CONFIG_PACKAGE_python3=/d' .config
+  printf 'CONFIG_PACKAGE_python3=y\n' >> .config
 
   # Also patch bind-rndc DEPENDS in the bind Makefile as a fallback
   BIND_MAKEFILE=$(find feeds -path "*/net/bind/Makefile" -print -quit 2>/dev/null)
@@ -337,7 +472,6 @@ if [ -f .config ]; then
       echo "  -> Patched bind-rndc DEPENDS to +bind-libs in bind Makefile"
     fi
   fi
-
 else
   echo "  WARNING: .config not found"
 fi
@@ -350,6 +484,7 @@ echo "=== bind-libs check done ==="
 echo "=== Verifying .config packages ==="
 if [ -f .config ]; then
   grep -q "CONFIG_PACKAGE_python3=y" .config && echo "  -> python3 selected" || echo "  -> WARNING: python3 not selected"
+  grep -q "CONFIG_PACKAGE_python3-light=y" .config && echo "  -> python3-light selected" || echo "  -> WARNING: python3-light not selected"
   grep -q "CONFIG_PACKAGE_bind-libs=y" .config && echo "  -> bind-libs selected" || echo "  -> WARNING: bind-libs not selected"
   grep -q "CONFIG_PACKAGE_bind=y" .config && echo "  -> bind selected" || echo "  -> WARNING: bind not selected"
 else
