@@ -153,7 +153,7 @@ jobs:
         id: package
         run: |
           cd openwrt
-          make menuconfig
+          make defconfig
           # Retry download up to 3 times with delay
           for i in 1 2 3; do
             echo "Download attempt $i/3..."
