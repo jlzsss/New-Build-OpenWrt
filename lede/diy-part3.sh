@@ -254,181 +254,80 @@ done
 echo "=== Go cgo fix done ==="
 
 # ============================================================
-# Fix luci-app-netspeedtest: replace python3-pkg-resources with python3
-# python3-pkg-resources doesn't exist in OpenWrt feeds
-# python3 provides the pkg-resources module
+# Fix luci-app-netspeedtest: python3-pkg-resources 已从上游移除
+# sirpdboy/netspeedtest 的 LUCI_DEPENDS 里写了 +python3-pkg-resources，
+# 但该包在 coolsnowwolf/packages 和 openwrt/packages 当前分支里都不存在
+# （setuptools>=82 移除了 pkg_resources，feed 里只有 python3-setuptools）。
+# 所以必须精确替换为真实存在的 +python3-setuptools，且只改 netspeedtest，
+# 禁止全局 s/python3-pkg-resources/python3/g（会误伤其它包且产生重复依赖）。
 # ============================================================
 echo "=== Fixing netspeedtest python3-pkg-resources dependency ==="
-# Fix in package/netspeedtest/
-if [ -f "package/netspeedtest/Makefile" ]; then
-  echo "  Found: package/netspeedtest/Makefile"
-  sed -i 's/python3-pkg-resources/python3/g' "package/netspeedtest/Makefile"
-  echo "  -> Replaced python3-pkg-resources with python3"
-fi
-# Fix in feeds/
-find feeds -path "*/netspeedtest/Makefile" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
-find feeds -name "Makefile" -path "*netspeedtest*" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
+for ns_makefile in $(find package feeds -path "*netspeedtest*/Makefile" 2>/dev/null); do
+  if grep -q "python3-pkg-resources" "$ns_makefile" 2>/dev/null; then
+    echo "  Found: $ns_makefile"
+    sed -i 's/+python3-pkg-resources/+python3-setuptools/g' "$ns_makefile"
+    echo "  -> Replaced +python3-pkg-resources with +python3-setuptools"
+  fi
+done
 echo "=== netspeedtest fix done ==="
 
 # ============================================================
-# Fix luci-app-ssr-plus: replace bind-dig with bind
-# bind-dig is not a valid package name; bind provides dig
+# Fix luci-app-ssr-plus: 保留 bind-dig，禁止替换成 bind
+# kenzok8/small、kenzok8/jell 的 luci-app-ssr-plus 依赖 +bind-dig，
+# 它是 feeds/packages/net/bind 真实提供的子包
+# （bind-libs/bind-server/bind-client/bind-tools/bind-dig/...）。
+# 而裸 `bind` 包根本不存在，之前全局 s/bind-dig/bind/g 不仅修不好，
+# 还会把 bind 自身 Makefile 里的 define Package/bind-dig 破坏掉，
+# 把提供者都删掉。这里只做校验，不做任何替换。
+# 缺失的 ipk 靠下面 .config 选中 CONFIG_PACKAGE_bind-dig 来编译。
 # ============================================================
-echo "=== Fixing ssr-plus bind-dig dependency ==="
-SSR_PLUS_FOUND=0
-for ssr_makefile in feeds/kenzok8/luci-app-ssr-plus/Makefile feeds/small/luci-app-ssr-plus/Makefile feeds/kenzo/luci-app-ssr-plus/Makefile; do
-  if [ -f "$ssr_makefile" ]; then
-    echo "  Found: $ssr_makefile"
-    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
-    echo "  -> Replaced bind-dig with bind"
-    SSR_PLUS_FOUND=1
-  fi
-done
-# Also search package/ directory
-for ssr_makefile in package/*/Makefile; do
-  if [ -f "$ssr_makefile" ] && grep -q "bind-dig" "$ssr_makefile" 2>/dev/null; then
-    echo "  Found: $ssr_makefile"
-    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
-    echo "  -> Replaced bind-dig with bind"
-    SSR_PLUS_FOUND=1
-  fi
-done
-if [ "$SSR_PLUS_FOUND" -eq 0 ]; then
-  echo "  WARNING: luci-app-ssr-plus Makefile not found, searching all feeds..."
-  find feeds -name "Makefile" -exec sed -i 's/bind-dig/bind/g' {} \; 2>/dev/null
-  echo "  -> Searched all feed Makefiles"
-fi
-echo "=== ssr-plus fix done ==="
+echo "=== Checking ssr-plus bind-dig dependency (keep as-is) ==="
+grep -rl "bind-dig" feeds package --include=Makefile 2>/dev/null | head -20 | while read -r f; do echo "  keep bind-dig in: $f"; done
+echo "=== ssr-plus check done ==="
 
 # ============================================================
-# Fix architecture incompatibility: ensure packages support x86_64
-# Remove architecture restrictions from problematic packages
+# 确保依赖在 .config 中被选中，然后 make defconfig 使其生效
+# netspeedtest 需要: python3-setuptools（替代已移除的 pkg-resources）
+# ssr-plus 需要: bind-dig + bind-libs（+liburcu 已有）
+# 注意: 裸 `bind` 包不存在，禁止选中 CONFIG_PACKAGE_bind；
+# python3-light 真实存在，禁止全局 s/+python3-light/+python3/g。
+# diy-part3 运行在 ./scripts/feeds install -a 之后，改完 Makefile/.config
+# 必须 make defconfig，否则 tmp/.packageinfo 还是旧的，install 必 fail。
 # ============================================================
-echo "=== Fixing architecture compatibility ==="
-# Remove any Build/NoArchitecture or similar restrictions
-find feeds package -name "Makefile" \( -path "*/netspeedtest/*" -o -path "*/luci-app-ssr-plus/*" \) -exec sed -i '/^  ARCH:/d; /^ARCH:=/d' {} \; 2>/dev/null
-echo "=== architecture fix done ==="
-
-# ============================================================
-# Fix python3-light: add it back to .config and fix dependent packages
-# The previous code removed python3-light but many packages depend on it.
-# python3-light is a metapackage that provides python3 core modules.
-# If it doesn't exist in feeds, we replace python3-light dep with python3
-# ============================================================
-echo "=== Fixing python3-light dependency ==="
+echo "=== Ensuring dependencies are selected in .config ==="
 if [ -f .config ]; then
-  # Remove stale entries and add python3-light
-  sed -i '/CONFIG_PACKAGE_python3-light/d' .config
-  printf 'CONFIG_PACKAGE_python3-light=y\n' >> .config
-  echo "  -> Added CONFIG_PACKAGE_python3-light=y"
-fi
-
-# Also fix python3-light dependency in all package Makefiles
-# Replace python3-light dep with python3 where python3-light doesn't exist
-echo "  -> Replacing python3-light with python3 in Makefiles..."
-find feeds package -name "Makefile" -exec sed -i 's/+python3-light/+python3/g' {} \; 2>/dev/null
-echo "=== python3-light fix done ==="
-
-# ============================================================
-# Fix luci-app-netspeedtest: replace python3-pkg-resources with python3
-# python3-pkg-resources doesn't exist in OpenWrt feeds
-# python3 provides the pkg-resources module
-# ============================================================
-echo "=== Fixing netspeedtest python3-pkg-resources dependency ==="
-# Fix in package/netspeedtest/
-if [ -f "package/netspeedtest/Makefile" ]; then
-  echo "  Found: package/netspeedtest/Makefile"
-  sed -i 's/python3-pkg-resources/python3/g' "package/netspeedtest/Makefile"
-  echo "  -> Replaced python3-pkg-resources with python3"
-fi
-# Fix in feeds/
-find feeds -path "*/netspeedtest/Makefile" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
-find feeds -name "Makefile" -path "*netspeedtest*" -exec sed -i 's/python3-pkg-resources/python3/g' {} \; 2>/dev/null
-echo "=== netspeedtest fix done ==="
-
-# ============================================================
-# Fix luci-app-ssr-plus: replace bind-dig with bind
-# bind-dig is not a valid package name; bind provides dig
-# ============================================================
-echo "=== Fixing ssr-plus bind-dig dependency ==="
-SSR_PLUS_FOUND=0
-for ssr_makefile in feeds/kenzok8/luci-app-ssr-plus/Makefile feeds/small/luci-app-ssr-plus/Makefile feeds/kenzo/luci-app-ssr-plus/Makefile; do
-  if [ -f "$ssr_makefile" ]; then
-    echo "  Found: $ssr_makefile"
-    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
-    echo "  -> Replaced bind-dig with bind"
-    SSR_PLUS_FOUND=1
-  fi
-done
-# Also search package/ directory
-for ssr_makefile in package/*/Makefile; do
-  if [ -f "$ssr_makefile" ] && grep -q "bind-dig" "$ssr_makefile" 2>/dev/null; then
-    echo "  Found: $ssr_makefile"
-    sed -i 's/bind-dig/bind/g' "$ssr_makefile"
-    echo "  -> Replaced bind-dig with bind"
-    SSR_PLUS_FOUND=1
-  fi
-done
-if [ "$SSR_PLUS_FOUND" -eq 0 ]; then
-  echo "  WARNING: luci-app-ssr-plus Makefile not found, searching all feeds..."
-  find feeds -name "Makefile" -exec sed -i 's/bind-dig/bind/g' {} \; 2>/dev/null
-  echo "  -> Searched all feed Makefiles"
-fi
-echo "=== ssr-plus fix done ==="
-
-# ============================================================
-# Fix architecture incompatibility: ensure packages support x86_64
-# Remove architecture restrictions from problematic packages
-# ============================================================
-echo "=== Fixing architecture compatibility ==="
-find feeds package -name "Makefile" \( -path "*/netspeedtest/*" -o -path "*/luci-app-ssr-plus/*" \) -exec sed -i '/^  ARCH:/d; /^ARCH:=/d' {} \; 2>/dev/null
-echo "=== architecture fix done ==="
-
-# ============================================================
-# Fix bind-rndc "is missing dependencies for the following
-# libraries: libdns-9.20.16.so ..."
-# bind's private .so files are packaged by bind-libs. When
-# bind-libs is not selected no built ipk owns those libraries,
-# so the ipk dependency check of bind-rndc fails. bind-libs in
-# turn needs liburcu.
-# ============================================================
-echo "=== Ensuring bind-libs and liburcu are selected ==="
-if [ -f .config ]; then
-  for sym in bind-libs liburcu; do
-    sed -i "/CONFIG_PACKAGE_$sym/d" .config
-    printf 'CONFIG_PACKAGE_%s=y\n' "$sym" >> .config
-    echo "  -> CONFIG_PACKAGE_$sym=y"
+  # 清掉之前误加的无效项（裸 bind 包不存在）
+  sed -i '/^CONFIG_PACKAGE_bind=y$/d' .config
+  sed -i '/^CONFIG_OVERRIDE_PKGS=/d' .config
+  # 删除旧行避免重复（同时匹配 "=y" 和 "is not set" 行）
+  for sym in bind-dig bind-libs python3-setuptools python3 python3-light liburcu; do
+    sed -i "/CONFIG_PACKAGE_${sym}[ =]/d" .config
   done
-  # Ensure python3-light and python3 are selected
-  sed -i '/CONFIG_PACKAGE_python3-light/d' .config
-  printf 'CONFIG_PACKAGE_python3-light=y\n' >> .config
-  sed -i '/CONFIG_PACKAGE_python3=/d' .config
+  printf 'CONFIG_PACKAGE_bind-dig=y\n' >> .config
+  printf 'CONFIG_PACKAGE_bind-libs=y\n' >> .config
+  printf 'CONFIG_PACKAGE_liburcu=y\n' >> .config
   printf 'CONFIG_PACKAGE_python3=y\n' >> .config
-
-  # Also patch bind-rndc DEPENDS in the bind Makefile as a fallback
-  BIND_MAKEFILE=$(find feeds -path "*/net/bind/Makefile" -print -quit 2>/dev/null)
-  if [ -n "$BIND_MAKEFILE" ]; then
-    if grep -q "define Package/bind-rndc" "$BIND_MAKEFILE" && ! grep -A3 "define Package/bind-rndc" "$BIND_MAKEFILE" | grep -q "bind-libs"; then
-      sed -i '/^define Package\/bind-rndc$/,/^endef$/{s/DEPENDS:=/DEPENDS:=+bind-libs /}' "$BIND_MAKEFILE"
-      echo "  -> Patched bind-rndc DEPENDS to +bind-libs in bind Makefile"
-    fi
-  fi
+  printf 'CONFIG_PACKAGE_python3-light=y\n' >> .config
+  printf 'CONFIG_PACKAGE_python3-setuptools=y\n' >> .config
+  echo "  -> selected bind-dig, bind-libs, liburcu, python3, python3-light, python3-setuptools"
+  # 刷新 defconfig，让新增选中项展开到依赖关系中
+  make defconfig
+  echo "  -> make defconfig done"
 else
   echo "  WARNING: .config not found"
 fi
-echo "=== bind-libs check done ==="
+echo "=== .config fix done ==="
 
 # ============================================================
 # Verify required packages are selected in .config
-# python3 provides pkg-resources; bind-tools is a subpackage of bind
 # ============================================================
 echo "=== Verifying .config packages ==="
 if [ -f .config ]; then
-  grep -q "CONFIG_PACKAGE_python3=y" .config && echo "  -> python3 selected" || echo "  -> WARNING: python3 not selected"
-  grep -q "CONFIG_PACKAGE_python3-light=y" .config && echo "  -> python3-light selected" || echo "  -> WARNING: python3-light not selected"
+  grep -q "CONFIG_PACKAGE_python3-setuptools=y" .config && echo "  -> python3-setuptools selected" || echo "  -> WARNING: python3-setuptools not selected"
+  grep -q "CONFIG_PACKAGE_bind-dig=y" .config && echo "  -> bind-dig selected" || echo "  -> WARNING: bind-dig not selected"
   grep -q "CONFIG_PACKAGE_bind-libs=y" .config && echo "  -> bind-libs selected" || echo "  -> WARNING: bind-libs not selected"
-  grep -q "CONFIG_PACKAGE_bind=y" .config && echo "  -> bind selected" || echo "  -> WARNING: bind not selected"
+  grep -q "CONFIG_PACKAGE_python3-light=y" .config && echo "  -> python3-light selected" || echo "  -> WARNING: python3-light not selected"
 else
   echo "  WARNING: .config not found"
 fi
-echo "=== .config verification done ==="
+echo "=== verification done ==="
