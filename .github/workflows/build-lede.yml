@@ -540,7 +540,7 @@ jobs:
         if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success'
         with:
           name: OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-          path: openwrt/bin
+          path: openwrt/bin/targets
 
       - name: Organize files
         id: organize
@@ -551,7 +551,13 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
           zip -r "OpenWrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.zip" bin/packages
           rm -rf bin/packages
-          tar -czf "OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.tar.gz" bin
+          # 瘦身：删除 targets 下的 kmod/packages（体积巨大），只保留固件，避免 Release 单文件 2GiB 限制
+          find bin/targets -type d -name "packages" -exec rm -rf {} + 2>/dev/null || true
+          echo "=== firmware content ==="
+          ls -lhR bin/targets | head -n 100
+          du -sh bin/targets
+          tar -czf "OpenWrt_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}.tar.gz" bin/targets
+          ls -lh *.zip *.tar.gz
 
       - name: Upload files to cowtransfer
         id: cowtransfer
