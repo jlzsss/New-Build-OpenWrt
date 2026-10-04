@@ -19,7 +19,6 @@ permissions:
   pull-requests: write
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 1G
   CCACHE_COMPRESS: true
@@ -57,7 +56,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v5
           
       - name: WeChat notification
         run: |
@@ -83,7 +82,7 @@ jobs:
           df -hT
 
       - name: Setup CCache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ github.run_id }}
@@ -204,7 +203,7 @@ jobs:
           df -hT
 
       - name: Store build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: prepare-build-output
           path: |
@@ -239,7 +238,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v5
 
       - name: Initialize environment
         env:
@@ -260,7 +259,7 @@ jobs:
           df -hT
 
       - name: Setup CCache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ github.run_id }}
@@ -275,7 +274,7 @@ jobs:
           ccache -s
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: prepare-build-output
           path: ${{ github.workspace }}
@@ -347,7 +346,7 @@ jobs:
           df -hT
 
       - name: Store build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-build-output
           path: |
@@ -384,7 +383,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v5
           
       - name: Initialize environment
         env:
@@ -405,7 +404,7 @@ jobs:
           df -hT
 
       - name: Setup CCache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ github.run_id }}
@@ -420,7 +419,7 @@ jobs:
           ccache -s
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build-build-output
           path: ${{ github.workspace }}
@@ -537,21 +536,21 @@ jobs:
           fi
 
       - name: Upload IPK files as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: steps.collect_ipks.outputs.status == 'success'
         with:
           name: OpenWrt_IPKs${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: openwrt/ipk_packages/
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success'
         with:
           name: OpenWrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: openwrt/bin/packages
 
       - name: Upload firmware images
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: steps.final-compile.outputs.status == 'success' || steps.Single-thread.outputs.status == 'success'
         with:
           name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
